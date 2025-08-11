@@ -1,0 +1,534 @@
+<div id="index_content" class="flex-1 bg-gray-800 rounded-lg shadow-lg flex flex-col overflow-auto" bis_skin_checked="1">
+            <header id="index_header" class="bg-gray-800 p-2 flex items-center justify-between rounded-t-lg border-b border-gray-700">
+                <button id="index_toggleSidebar" aria-label="Toggle Sidebar" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <input type="file" multiple="" class="uploadInput hidden">
+            </header>
+            <div id="index_upload" class="p-2 border-b border-gray-700 space-y-2 max-w-full md:max-w-5xl md:mx-auto hidden" bis_skin_checked="1">
+            </div>
+            <div id="index_ads" class="flex flex-col justify-center items-center p-4 border-b border-gray-700 hidden" bis_skin_checked="1"></div>
+            <main id="index_main" class="flex-1 p-3 lg:p-6"><div id="filemanager" class="space-y-2 text-white bg-gray-800" bis_skin_checked="1">
+    <div id="filemanager_loading" class="w-full h-full flex items-center justify-center hidden" bis_skin_checked="1">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500" bis_skin_checked="1"></div>
+    </div>
+    <div id="filemanager_alert" class="border border-blue-500 p-4 rounded-md mb-2 max-w-xl mx-auto hidden" bis_skin_checked="1">
+        <div class="flex items-center justify-center" bis_skin_checked="1">
+            <span id="filemanager_alert_icon">
+                <i class="fas fa-info-circle text-blue-500 text-2xl mr-3"></i>
+            </span>
+            <div id="filemanager_alert_message" class="text-center" bis_skin_checked="1">Alert message</div>
+        </div>
+        <form id="filemanager_alert_passwordform" class="flex flex-col items-center mt-3 hidden">
+            <input type="password" id="filemanager_alert_passwordform_input" class="border border-gray-600 p-2 rounded-md mb-2 w-full bg-gray-700 text-white" placeholder="Enter Password">
+            <button type="submit" id="filemanager_alert_passwordform_submit" class="bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded-md flex items-center">
+                <i class="fas fa-lock-open mr-2"></i>Unlock
+            </button>
+            <div id="filemanager_alert_passwordform_loading" class="w-full h-full flex items-center justify-center hidden" bis_skin_checked="1">
+                <div class="animate-spin rounded-full h-8 w-8 border-t-4 border-blue-500" bis_skin_checked="1"></div>
+            </div>
+        </form>
+    </div>
+    <div id="filemanager_description" class="border border-gray-500 p-4 rounded-md mb-2 hidden" bis_skin_checked="1">
+        <div class="flex items-center justify-center" bis_skin_checked="1">
+            <div id="filemanager_description_value" class="prose prose-invert text-sm max-w-full" bis_skin_checked="1">
+                <div class="animate-spin rounded-full h-8 w-8 border-t-4 border-blue-500" bis_skin_checked="1"></div>
+            </div>
+        </div>
+    </div>
+    <div id="filemanager_maincontent" class="flex items-center justify-between" data-item-id="dd49fa92-dbbc-4d7d-8f07-3faac12cbd36" bis_skin_checked="1">
+        <div class="flex items-center space-x-2" bis_skin_checked="1">
+            <button id="filemanager_maincontent_back" class="border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center hidden">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <div class="relative inline-flex" bis_skin_checked="1">
+                <span id="filemanager_maincontent_icon"><i class="fas fa-folder-open text-yellow-400 text-2xl mr-2"></i></span>
+                <div class="absolute inline-flex items-center justify-center w-auto min-w-5 h-5 text-xs font-bold text-white bg-gray-500 border border-gray-900 rounded-full -bottom-1 -start-1" bis_skin_checked="1">
+                    <span id="filemanager_maincontent_itemscount">4</span>
+                </div>
+            </div>
+            <div class="" bis_skin_checked="1">
+                <div class="flex items-center space-x-2 max-w-64 sm:max-w-96 md:max-w-96 xl:max-w-3xl 2xl:max-w-4xl" bis_skin_checked="1">
+                    <h1 id="filemanager_maincontent_name" class="font-bold truncate">0jNF6Z</h1>
+                </div>
+                <div class="flex flex-row text-xs text-gray-400" bis_skin_checked="1">
+                    <div id="filemanager_maincontent_createtime" class="" bis_skin_checked="1"><span id="filemanager_maincontent_createtimevalue">5/8/2025, 21.48.02</span></div>
+                </div>
+                <div id="filemanager_maincontent_properties" class="text-xs flex flex-row mt-1" bis_skin_checked="1">
+                    <span id="filemanager_maincontent_properties_public" class="bg-gray-500 text-white rounded px-1 py-0.5 mr-1 hidden"><i class="fas fa-globe mr-1"></i>public</span>
+                    <span id="filemanager_maincontent_properties_password" class="bg-gray-500 text-white rounded px-1 py-0.5 mr-1 hidden"><i class="fas fa-lock mr-1"></i>protected</span>
+                    <span id="filemanager_maincontent_properties_tags" class="bg-gray-500 text-white rounded px-1 py-0.5 mr-1 hidden"><i class="fas fa-tag mr-1"></i>tags</span>
+                    <span id="filemanager_maincontent_properties_expire" class="bg-gray-500 text-white rounded px-1 py-0.5 mr-1 hidden"><i class="fas fa-hourglass-end mr-1"></i>expire</span>
+                    <span id="filemanager_maincontent_properties_directlink" class="bg-gray-500 text-white rounded px-1 py-0.5 mr-1 hidden"><i class="fas fa-link mr-1"></i><span id="filemanager_maincontent_properties_directlink_value"></span></span>
+                </div>
+                <div id="filemanager_maincontent_dropdown" class="relative self-start" bis_skin_checked="1">
+                    <button class="dropdown-toggle border border-gray-600 text-xs px-2 py-0 rounded hover:bg-gray-700">
+                        <i class="fas fa-ellipsis"></i>
+                    </button>
+                    <div class="dropdown absolute bg-gray-700 mt-1 rounded shadow z-10 border w-52 border-gray-600 hidden" bis_skin_checked="1">
+                        <a href="javascript:void(0)" class="item_download p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-download"></i>Download</a>
+                        <a href="javascript:void(0)" class="item_import p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-file-import"></i>Import</a>
+                        <a href="javascript:void(0)" class="item_share p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-share-alt"></i>Share</a>
+                        <a href="javascript:void(0)" class="item_playallmedia p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-play"></i>Play all media</a>
+                        <a href="javascript:void(0)" class="item_closeallmedia p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-stop"></i>Close all media</a>
+                        <hr class="border-gray-600">
+                        <a href="javascript:void(0)" class="item_rename p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-pencil-alt"></i>Rename</a>
+                        <a href="javascript:void(0)" class="item_copy p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-copy"></i>Copy</a>
+                        <a href="javascript:void(0)" class="item_move p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-arrows-alt"></i>Move</a>
+                        <a href="javascript:void(0)" class="item_delete p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-trash"></i>Delete</a>
+                        <hr class="border-gray-600">
+                        <a href="javascript:void(0)" class="item_properties p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-info-circle"></i>Properties</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="filemanager_mainbuttons" class="flex items-center justify-between" bis_skin_checked="1">
+        <div class="flex items-center space-x-2" bis_skin_checked="1">
+            <div id="filemanager_mainbuttons_checkboxAll" class="relative inline-flex p-1 rounded border border-gray-600" bis_skin_checked="1">
+                <input id="filemanager_mainbuttons_checkboxAll_input" type="checkbox" class="form-checkbox text-blue-500">
+                <div id="filemanager_mainbuttons_checkboxAll_count" class="absolute inline-flex items-center justify-center w-auto min-w-5 h-5 text-xs font-bold text-white bg-gray-500 border border-gray-900 rounded-full -top-3 -end-3 hidden" bis_skin_checked="1">
+                    <span id="filemanager_mainbuttons_checkboxAll_countvalue">0</span>
+                </div>
+            </div>
+            <button id="filemanager_mainbuttons_download" class="border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center hidden">
+                <i class="fas fa-download"></i>
+            </button>
+            <button id="filemanager_mainbuttons_copy" class="border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center hidden">
+                <i class="fas fa-copy"></i>
+            </button>
+            <button id="filemanager_mainbuttons_copyhere" class="relative border border-gray-600 text-yellow-500 text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center hidden">
+                <i class="fas fa-copy"></i>
+                <div class="absolute inline-flex items-center justify-center w-auto min-w-5 h-5 text-xs font-bold text-white bg-gray-500 border border-gray-900 rounded-full -top-3 -end-3" bis_skin_checked="1">
+                    <span id="filemanager_mainbuttons_copyhere_countvalue">0</span>
+                </div>
+            </button>
+            <button id="filemanager_mainbuttons_copycancel" class="border border-gray-600 text-yellow-500 text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center hidden">
+                <i class="fas fa-times"></i>
+            </button>
+            <button id="filemanager_mainbuttons_move" class="border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center hidden">
+                <i class="fas fa-arrows-alt"></i>
+            </button>
+            <button id="filemanager_mainbuttons_movehere" class="relative border border-gray-600 text-yellow-500 text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center hidden">
+                <i class="fas fa-arrows-alt"></i>
+                <div class="absolute inline-flex items-center justify-center w-auto min-w-5 h-5 text-xs font-bold text-white bg-gray-500 border border-gray-900 rounded-full -top-3 -end-3" bis_skin_checked="1">
+                    <span id="filemanager_mainbuttons_movehere_countvalue">0</span>
+                </div>
+            </button>
+            <button id="filemanager_mainbuttons_movecancel" class="border border-gray-600 text-yellow-500 text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center hidden">
+                <i class="fas fa-times"></i>
+            </button>
+            <button id="filemanager_mainbuttons_delete" class="border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center hidden">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>        
+        <div class="flex items-center space-x-2 relative" bis_skin_checked="1">
+            <button id="filemanager_mainbuttons_share" class="bg-green-600 text-white px-2 py-1 rounded shadow hover:bg-green-700 flex items-center text-sm hidden">
+                <i class="fas fa-share-alt mr-1"></i>
+                <span class="hidden lg:inline">Share</span>
+            </button>
+            <button id="filemanager_mainbuttons_import" class="bg-green-600 text-white px-2 py-1 rounded shadow hover:bg-green-700 flex items-center text-sm">
+                <i class="fas fa-file-import mr-1"></i>
+                <span class="hidden lg:inline">Import</span>
+            </button>            
+            <button id="filemanager_mainbuttons_createFolder" class="bg-blue-600 text-white px-2 py-1 rounded shadow hover:bg-blue-700 flex items-center text-sm hidden">
+                <i class="fas fa-folder-plus mr-1"></i>
+                <span class="hidden lg:inline">Create Folder</span>
+            </button>
+            <button id="filemanager_mainbuttons_uploadFiles" class="bg-blue-600 text-white px-2 py-1 rounded shadow hover:bg-blue-700 flex items-center text-sm hidden">
+                <i class="fas fa-upload mr-1"></i>
+                <span class="hidden lg:inline">Upload Files</span>
+            </button>
+            <div class="relative" bis_skin_checked="1">
+                <button id="filemanager_mainbuttons_sort" class="dropdown-toggle bg-gray-600 text-white px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center text-sm">
+                    <i class="fas fa-sort mr-1"></i>
+                    <span class="hidden lg:inline">Sort by</span>
+                    <i class="fas fa-caret-down ml-1"></i>
+                </button>
+                <div class="dropdown absolute bg-gray-700 mt-1 rounded shadow z-10 border right-0 w-52 border-gray-600 hidden" bis_skin_checked="1">
+                    <a href="javascript:void(0)" class="filemanager_mainbuttons_sort_value p-2 flex items-center gap-2 hover:bg-gray-600" data-sort="createTime">
+                        Create time<span class="sort-icon"></span>
+                    </a>
+                    <a href="javascript:void(0)" class="filemanager_mainbuttons_sort_value p-2 flex items-center gap-2 hover:bg-gray-600" data-sort="name">
+                        Name<span class="sort-icon"><i class="fas fa-sort-up"></i></span>
+                    </a>
+                    <a href="javascript:void(0)" class="filemanager_mainbuttons_sort_value p-2 flex items-center gap-2 hover:bg-gray-600" data-sort="size">
+                        Size<span class="sort-icon"></span>
+                    </a>
+                    <!-- <a href="javascript:void(0)" class="filemanager_mainbuttons_sort_value p-2 flex items-center gap-2 hover:bg-gray-600" data-sort="downloads">
+                        Downloads<span class="sort-icon"></span>
+                    </a> -->
+                    <a href="javascript:void(0)" class="filemanager_mainbuttons_sort_value p-2 flex items-center gap-2 hover:bg-gray-600" data-sort="mimetype">
+                        Mimetype<span class="sort-icon"></span>
+                    </a>
+                </div>
+            </div>
+            <button id="filemanager_mainbuttons_filter" class="bg-gray-600 text-white px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center text-sm">
+                <i class="fas fa-filter mr-1"></i>
+                <span class="hidden lg:inline">Filter</span>
+            </button>
+            <button id="filemanager_mainbuttons_search" class="bg-gray-600 text-white px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center text-sm">
+                <i class="fas fa-search mr-1"></i>
+                <span class="hidden lg:inline">Search</span>
+            </button>
+            <button id="filemanager_mainbuttons_refresh" class="bg-gray-600 text-white px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center text-sm">
+                <i class="fas fa-sync-alt mr-1"></i>
+                <span class="hidden lg:inline">Refresh</span>
+            </button>
+        </div>
+    </div>
+    <div id="filemanager_topbuttons_pagination" class="flex items-center justify-end pr-2 py-1 hidden" bis_skin_checked="1">
+        <div class="flex items-center space-x-2" bis_skin_checked="1">
+            <button class="filemanager_mainbuttons_pagination_previous bg-gray-600 text-white px-2 py-0.5 rounded shadow hover:bg-gray-700 flex items-center text-xs hidden">
+                <i class="fas fa-arrow-left mx-1"></i>
+            </button>
+            <div class="filemanager_mainbuttons_pagination_details flex items-center space-x-2 text-xs" bis_skin_checked="1">
+                <span>Page</span>
+                <input type="text" inputmode="numeric" pattern="[0-9]*" class="filemanager_mainbuttons_pagination_pageinput w-12 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-center [appearance:textfield] [&amp;::-webkit-outer-spin-button]:appearance-none [&amp;::-webkit-inner-spin-button]:appearance-none" min="1">
+                <span>/ <span class="filemanager_mainbuttons_pagination_pagecount">1</span></span>
+                <span>(<span class="filemanager_mainbuttons_pagination_itemtotal">4</span> items)</span>
+            </div>
+            <button class="filemanager_mainbuttons_pagination_next bg-gray-600 text-white px-2 py-0.5 rounded shadow hover:bg-gray-700 flex items-center text-xs hidden">
+                <i class="fas fa-arrow-right mx-1"></i>
+            </button>
+        </div>
+    </div>    
+    <div id="filemanager_itemslist" class="bg-gray-800 border-t border-gray-600 p-2" bis_skin_checked="1">
+        <div id="filemanager_itemslist_traffic_exceeded" class="text-white text-center text-xs bg-gray-700 rounded mb-2 p-2 hidden" bis_skin_checked="1">
+            <p class="mb-2">
+                <i class="fas fa-exclamation-triangle mr-2 text-red-400"></i>
+                <strong>Traffic limit exceeded:</strong> 
+                <span id="traffic_used">0 GB</span> / <span id="traffic_limit">0 GB</span> used in the last 30 days.
+            </p>
+            <p class="text-xs text-gray-300 mb-2">
+                Download functionality is temporarily restricted.
+            </p>
+            <div class="flex gap-2 justify-center text-xs" bis_skin_checked="1">
+                <a href="/myprofile" class="inline-flex items-center px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">
+                    <i class="fas fa-chart-bar mr-1"></i>
+                    Usage
+                </a>
+                <a href="/premium" class="inline-flex items-center px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">
+                    <i class="fas fa-arrow-up mr-1"></i>
+                    Upgrade
+                </a>
+            </div>
+        </div>
+        <div id="filemanager_itemslist_filtered" class="text-white text-center text-xs bg-gray-700 rounded mb-2 p-2 hidden" bis_skin_checked="1">
+            <p>
+                <i class="fas fa-filter mr-2"></i>
+                The results are currently filtered. Remove your filters to get all results.
+            </p>
+        </div>
+        <div id="filemanager_itemslist_frozen" class="text-white text-center text-xs bg-gray-700 rounded mb-2 p-2 hidden" bis_skin_checked="1">
+            <p>
+                <i class="fas fa-snowflake mr-2"></i>
+                Some contents in this folder have exceeded their storage period and have been automatically moved to cold storage for preservation. To access these items, you'll need to import them into your account space. The import feature requires a premium account.
+            </p>
+        </div>
+        <div id="filemanager_itemslist_empty" class="text-white text-center bg-gray-700 rounded p-2 hidden" bis_skin_checked="1">
+            <p>
+                <i class="fas fa-file-excel mr-2"></i>
+                No items to display
+            </p>
+        </div>
+    
+        <div class="border-b border-gray-600" data-item-id="98227248-616b-47fb-82e8-533e854b1398" bis_skin_checked="1">
+            <div class="flex items-center justify-between p-1 space-x-2" bis_skin_checked="1">
+                <div class="flex items-center overflow-auto" bis_skin_checked="1">
+                    <div class="min-w-4" bis_skin_checked="1">
+                        <input type="checkbox" class="item_checkbox text-blue-500 mr-2">
+                    </div>
+                    <div class="min-w-8" bis_skin_checked="1">
+                    <div class="relative inline-flex" bis_skin_checked="1">
+                            <i class="fas fa-file-video text-blue-400 text-2xl mr-2"></i>
+                            
+                        </div>
+                    </div>
+                    <div class="truncate" bis_skin_checked="1">
+                        <a href="javascript:void(0);" class="item_open font-semibold text-sm text-white hover:underline">Mattaku-6-360p-WINBU.TV.mp4</a>
+                        <div class="flex flex-col text-xs text-gray-400 mt-1" bis_skin_checked="1">
+                            <div class="min-w-24" bis_skin_checked="1"><span>5/8/2025, 21.48.04</span></div>
+                            <div class="min-w-24" bis_skin_checked="1"><span>39.7 MB</span></div>
+                            
+                        </div>
+                        
+                        <div class="thumbnail mt-2" bis_skin_checked="1">
+                            <img class="item_thumbnail max-h-36" src="https://cold1.gofile.io/download/web/98227248-616b-47fb-82e8-533e854b1398/thumb_4c7e99c76a8ece1d57d21e1c6bcd0e71" alt="Thumbnail" loading="lazy">
+                        </div>
+                    </div>
+                </div>
+                <div bis_skin_checked="1">
+                    <div class="flex flex-row space-x-2" bis_skin_checked="1">
+                        
+                        <button class="item_play border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                                    <i class="fas fa-play mr-1"></i>
+                                    <span class="hidden lg:inline">Play</span>
+                            </button>
+                            <button class="item_close hidden border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                                    <i class="fas fa-times mr-1"></i>
+                                    <span class="hidden lg:inline">Close</span>
+                            </button>
+                        <button class="item_download border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                            <i class="fas fa-download mr-1"></i>
+                            <span class="hidden lg:inline">Download</span>
+                        </button>
+                        <div class="relative" bis_skin_checked="1">
+                            <button class="dropdown-toggle border border-gray-600 text-sm px-2 py-1 rounded hover:bg-gray-700">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div class="dropdown absolute z-10 right-0 bg-gray-700 mt-1 rounded shadow border w-52 border-gray-600 hidden" bis_skin_checked="1">
+                                
+                                <a href="javascript:void(0)" class="item_download p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-download"></i>Download</a>
+                                <a href="javascript:void(0)" class="item_import p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-file-import"></i>Import</a>
+                                
+                                <a href="javascript:void(0)" class="item_play p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-play"></i>Play</a>
+                                <a href="javascript:void(0)" class="item_close p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-times"></i>Close</a>
+                                <hr class="border-gray-600">
+                                
+                                
+                                <hr class="border-gray-600">
+                                <a href="javascript:void(0)" class="item_properties p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-info-circle"></i>Properties</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+        <div class="border-b border-gray-600" data-item-id="afcac75a-1473-41cb-a5c6-0d689d2fc4b1" bis_skin_checked="1">
+            <div class="flex items-center justify-between p-1 space-x-2" bis_skin_checked="1">
+                <div class="flex items-center overflow-auto" bis_skin_checked="1">
+                    <div class="min-w-4" bis_skin_checked="1">
+                        <input type="checkbox" class="item_checkbox text-blue-500 mr-2">
+                    </div>
+                    <div class="min-w-8" bis_skin_checked="1">
+                    <div class="relative inline-flex" bis_skin_checked="1">
+                            <i class="fas fa-file-video text-blue-400 text-2xl mr-2"></i>
+                            
+                        </div>
+                    </div>
+                    <div class="truncate" bis_skin_checked="1">
+                        <a href="javascript:void(0);" class="item_open font-semibold text-sm text-white hover:underline">Mattaku-6-480p-WINBU.TV.mp4</a>
+                        <div class="flex flex-col text-xs text-gray-400 mt-1" bis_skin_checked="1">
+                            <div class="min-w-24" bis_skin_checked="1"><span>5/8/2025, 21.48.04</span></div>
+                            <div class="min-w-24" bis_skin_checked="1"><span>69.8 MB</span></div>
+                            
+                        </div>
+                        
+                        <div class="thumbnail mt-2" bis_skin_checked="1">
+                            <img class="item_thumbnail max-h-36" src="https://cold5.gofile.io/download/web/afcac75a-1473-41cb-a5c6-0d689d2fc4b1/thumb_ac4194b16e37004caf61ddb89d1d998e" alt="Thumbnail" loading="lazy">
+                        </div>
+                    </div>
+                </div>
+                <div bis_skin_checked="1">
+                    <div class="flex flex-row space-x-2" bis_skin_checked="1">
+                        
+                        <button class="item_play border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                                    <i class="fas fa-play mr-1"></i>
+                                    <span class="hidden lg:inline">Play</span>
+                            </button>
+                            <button class="item_close hidden border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                                    <i class="fas fa-times mr-1"></i>
+                                    <span class="hidden lg:inline">Close</span>
+                            </button>
+                        <button class="item_download border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                            <i class="fas fa-download mr-1"></i>
+                            <span class="hidden lg:inline">Download</span>
+                        </button>
+                        <div class="relative" bis_skin_checked="1">
+                            <button class="dropdown-toggle border border-gray-600 text-sm px-2 py-1 rounded hover:bg-gray-700">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div class="dropdown absolute z-10 right-0 bg-gray-700 mt-1 rounded shadow border w-52 border-gray-600 hidden" bis_skin_checked="1">
+                                
+                                <a href="javascript:void(0)" class="item_download p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-download"></i>Download</a>
+                                <a href="javascript:void(0)" class="item_import p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-file-import"></i>Import</a>
+                                
+                                <a href="javascript:void(0)" class="item_play p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-play"></i>Play</a>
+                                <a href="javascript:void(0)" class="item_close p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-times"></i>Close</a>
+                                <hr class="border-gray-600">
+                                
+                                
+                                <hr class="border-gray-600">
+                                <a href="javascript:void(0)" class="item_properties p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-info-circle"></i>Properties</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+        <div class="border-b border-gray-600" data-item-id="ad444abe-3079-4788-8d6f-62714bcc415b" bis_skin_checked="1">
+            <div class="flex items-center justify-between p-1 space-x-2" bis_skin_checked="1">
+                <div class="flex items-center overflow-auto" bis_skin_checked="1">
+                    <div class="min-w-4" bis_skin_checked="1">
+                        <input type="checkbox" class="item_checkbox text-blue-500 mr-2">
+                    </div>
+                    <div class="min-w-8" bis_skin_checked="1">
+                    <div class="relative inline-flex" bis_skin_checked="1">
+                            <i class="fas fa-file-video text-blue-400 text-2xl mr-2"></i>
+                            
+                        </div>
+                    </div>
+                    <div class="truncate" bis_skin_checked="1">
+                        <a href="javascript:void(0);" class="item_open font-semibold text-sm text-white hover:underline">Mattaku-6-720p-WINBU.TV.mp4</a>
+                        <div class="flex flex-col text-xs text-gray-400 mt-1" bis_skin_checked="1">
+                            <div class="min-w-24" bis_skin_checked="1"><span>5/8/2025, 21.48.06</span></div>
+                            <div class="min-w-24" bis_skin_checked="1"><span>130.5 MB</span></div>
+                            
+                        </div>
+                        
+                        <div class="thumbnail mt-2" bis_skin_checked="1">
+                            <img class="item_thumbnail max-h-36" src="https://cold1.gofile.io/download/web/ad444abe-3079-4788-8d6f-62714bcc415b/thumb_655d15d5f161657ab3e7191802ae52bb" alt="Thumbnail" loading="lazy">
+                        </div>
+                    </div>
+                </div>
+                <div bis_skin_checked="1">
+                    <div class="flex flex-row space-x-2" bis_skin_checked="1">
+                        
+                        <button class="item_play border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                                    <i class="fas fa-play mr-1"></i>
+                                    <span class="hidden lg:inline">Play</span>
+                            </button>
+                            <button class="item_close hidden border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                                    <i class="fas fa-times mr-1"></i>
+                                    <span class="hidden lg:inline">Close</span>
+                            </button>
+                        <button class="item_download border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                            <i class="fas fa-download mr-1"></i>
+                            <span class="hidden lg:inline">Download</span>
+                        </button>
+                        <div class="relative" bis_skin_checked="1">
+                            <button class="dropdown-toggle border border-gray-600 text-sm px-2 py-1 rounded hover:bg-gray-700">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div class="dropdown absolute z-10 right-0 bg-gray-700 mt-1 rounded shadow border w-52 border-gray-600 hidden" bis_skin_checked="1">
+                                
+                                <a href="javascript:void(0)" class="item_download p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-download"></i>Download</a>
+                                <a href="javascript:void(0)" class="item_import p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-file-import"></i>Import</a>
+                                
+                                <a href="javascript:void(0)" class="item_play p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-play"></i>Play</a>
+                                <a href="javascript:void(0)" class="item_close p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-times"></i>Close</a>
+                                <hr class="border-gray-600">
+                                
+                                
+                                <hr class="border-gray-600">
+                                <a href="javascript:void(0)" class="item_properties p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-info-circle"></i>Properties</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+        <div class="border-b border-gray-600" data-item-id="ffa5d95a-8402-494f-ba07-ef15912355a9" bis_skin_checked="1">
+            <div class="flex items-center justify-between p-1 space-x-2" bis_skin_checked="1">
+                <div class="flex items-center overflow-auto" bis_skin_checked="1">
+                    <div class="min-w-4" bis_skin_checked="1">
+                        <input type="checkbox" class="item_checkbox text-blue-500 mr-2">
+                    </div>
+                    <div class="min-w-8" bis_skin_checked="1">
+                    <div class="relative inline-flex" bis_skin_checked="1">
+                            <i class="fas fa-file-video text-blue-400 text-2xl mr-2"></i>
+                            
+                        </div>
+                    </div>
+                    <div class="truncate" bis_skin_checked="1">
+                        <a href="javascript:void(0);" class="item_open font-semibold text-sm text-white hover:underline">Mattaku-6-FHD-WINBU.TV.mp4</a>
+                        <div class="flex flex-col text-xs text-gray-400 mt-1" bis_skin_checked="1">
+                            <div class="min-w-24" bis_skin_checked="1"><span>5/8/2025, 21.48.07</span></div>
+                            <div class="min-w-24" bis_skin_checked="1"><span>191.0 MB</span></div>
+                            
+                        </div>
+                        
+                        <div class="thumbnail mt-2" bis_skin_checked="1">
+                            <img class="item_thumbnail max-h-36" src="https://cold1.gofile.io/download/web/ffa5d95a-8402-494f-ba07-ef15912355a9/thumb_d9fd0d1991cf27ecfcacb6feddebb6bf" alt="Thumbnail" loading="lazy">
+                        </div>
+                    </div>
+                </div>
+                <div bis_skin_checked="1">
+                    <div class="flex flex-row space-x-2" bis_skin_checked="1">
+                        
+                        <button class="item_play border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                                    <i class="fas fa-play mr-1"></i>
+                                    <span class="hidden lg:inline">Play</span>
+                            </button>
+                            <button class="item_close hidden border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                                    <i class="fas fa-times mr-1"></i>
+                                    <span class="hidden lg:inline">Close</span>
+                            </button>
+                        <button class="item_download border border-gray-600 text-white text-sm px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center">
+                            <i class="fas fa-download mr-1"></i>
+                            <span class="hidden lg:inline">Download</span>
+                        </button>
+                        <div class="relative" bis_skin_checked="1">
+                            <button class="dropdown-toggle border border-gray-600 text-sm px-2 py-1 rounded hover:bg-gray-700">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div class="dropdown absolute z-10 right-0 bg-gray-700 mt-1 rounded shadow border w-52 border-gray-600 hidden" bis_skin_checked="1">
+                                
+                                <a href="javascript:void(0)" class="item_download p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-download"></i>Download</a>
+                                <a href="javascript:void(0)" class="item_import p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-file-import"></i>Import</a>
+                                
+                                <a href="javascript:void(0)" class="item_play p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-play"></i>Play</a>
+                                <a href="javascript:void(0)" class="item_close p-2 flex items-center gap-2 hover:bg-gray-600 hidden"><i class="fas fa-times"></i>Close</a>
+                                <hr class="border-gray-600">
+                                
+                                
+                                <hr class="border-gray-600">
+                                <a href="javascript:void(0)" class="item_properties p-2 flex items-center gap-2 hover:bg-gray-600"><i class="fas fa-info-circle"></i>Properties</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="filemanager_mainbuttons_pagination" class="mt-2 flex justify-center items-center" bis_skin_checked="1">
+        <div class="flex flex-col items-center text-xs" bis_skin_checked="1">
+            <div class="flex items-center space-x-2 mb-1" bis_skin_checked="1">
+                <button class="filemanager_mainbuttons_pagination_previous bg-gray-600 text-white px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center text-xs hidden">
+                    <i class="fas fa-arrow-left mx-1"></i>
+                </button>
+                <div class="filemanager_mainbuttons_pagination_details2 flex items-center space-x-2 hidden" bis_skin_checked="1">
+                    <span>Page</span>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" class="filemanager_mainbuttons_pagination_pageinput w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-center [appearance:textfield] [&amp;::-webkit-outer-spin-button]:appearance-none [&amp;::-webkit-inner-spin-button]:appearance-none" min="1">
+                    <span>of <span class="filemanager_mainbuttons_pagination_pagecount">1</span></span>
+                </div>
+                <button class="filemanager_mainbuttons_pagination_next bg-gray-600 text-white px-2 py-1 rounded shadow hover:bg-gray-700 flex items-center text-xs hidden">
+                    <i class="fas fa-arrow-right mx-1"></i>
+                </button>
+            </div>
+            <span>Showing <span class="filemanager_mainbuttons_pagination_itemcount">1000</span> items per page</span>
+            <span>Total <span class="filemanager_mainbuttons_pagination_itemtotal">4</span> items</span>
+        </div>
+    </div>    
+    <div id="filemanager_abuse" class="mt-4 flex flex-col items-center" bis_skin_checked="1">
+        <button id="filemanager_abuse_button" class="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded shadow flex items-center text-xs mb-2">
+            <i class="fas fa-flag mr-2"></i>
+            Report Abuse
+        </button>
+        <button id="filemanager_abuse_remove_button" class="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded shadow flex items-center text-xs hidden">
+            <i class="fas fa-times mr-1"></i>
+            Remove
+        </button>
+    </div>
+</div></main>
+            <footer id="index_footer" class="bg-gray-800 p-2 text-center text-sm text-gray-400 border-t border-gray-700 rounded-b-lg flex flex-col lg:flex-row justify-between items-center space-y-2 lg:space-y-0 lg:space-x-2">
+                <div class="flex flex-col items-center space-y-2 lg:flex-row lg:space-y-0 lg:space-x-2" bis_skin_checked="1">
+                    <a href="/home" class="hover:text-blue-500">Home</a>
+                    <span class="hidden lg:inline">|</span>
+                    <a href="/terms" class="hover:text-blue-500">Terms of Service</a>
+                    <span class="hidden lg:inline">|</span>
+                    <a href="/privacy" class="hover:text-blue-500">Privacy Policy</a>
+                    <span class="hidden lg:inline">|</span>
+                    <a href="/copyright" class="hover:text-blue-500">Copyright</a>
+                    <span class="hidden lg:inline">|</span>
+                    <a href="/contact" class="hover:text-blue-500">Contact</a>
+                </div>
+                <div class="text-center lg:text-right" bis_skin_checked="1">
+                    <p>WOJTEK SAS © <script>document.write(new Date().getFullYear());</script>2025, made with <span class="text-red-500">❤️</span> by Gofile Team</p>
+                </div>                
+            </footer>
+        </div>
