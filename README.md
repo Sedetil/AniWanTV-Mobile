@@ -72,10 +72,12 @@ lib/
 │   ├── custom_bottom_nav_bar.dart # Bottom navigation
 │   ├── custom_controls.dart       # Video player controls
 │   ├── custom_error_dialog.dart   # Error dialog
-│   └── custom_loading_widget.dart # Loading animations
+│   ├── custom_loading_widget.dart # Loading animations
+│   └── update_dialog.dart        # App update dialog with progress
 ├── services/                 # Backend services
 │   ├── api_service.dart      # API integration dengan caching
-│   └── ad_service.dart       # AdMob integration
+│   ├── ad_service.dart       # AdMob integration
+│   └── app_version_service.dart # App update and APK installation
 ├── providers/                # State management
 │   └── app_state_provider.dart # Global app state
 └── theme/                    # Theme configuration
@@ -114,6 +116,10 @@ lib/
 #### Utilities
 - `url_launcher`: Launch external URLs
 - `flutter_launcher_icons`: Custom app icons
+- `permission_handler`: Permission management for Android 13+
+- `package_info_plus`: App version information
+- `path_provider`: File system access
+- `file_picker`: File selection dialog
 
 ## 🚀 Backend Integration
 
@@ -221,6 +227,27 @@ flutter build web --release
 - `INTERNET`: Network access
 - `ACCESS_NETWORK_STATE`: Network state monitoring
 - `READ_EXTERNAL_STORAGE`: File access (Android)
+- `WRITE_EXTERNAL_STORAGE`: File write access (Android)
+- `MANAGE_EXTERNAL_STORAGE`: Full storage access (Android 13+)
+- `READ_MEDIA_*`: Granular media permissions (Android 13+)
+- `REQUEST_INSTALL_PACKAGES`: APK installation permission
+
+## 🔄 Pembaruan Terbaru
+
+### 📋 Bug Fixes & Improvements (v1.0.1)
+- [x] **Permission Handler Fix**: Memperbaiki `MissingPluginException` untuk permission_handler
+- [x] **Android 13+ Compatibility**: Menambahkan granular media permissions (READ_MEDIA_*)
+- [x] **APK Installation**: Implementasi native APK installation dengan MethodChannel
+- [x] **FileProvider Configuration**: Konfigurasi secure file access untuk APK installation
+- [x] **Storage Permission**: Improved permission handling untuk semua Android version
+- [x] **Plugin Registration**: Proper plugin registration di MainActivity.kt dan AppDelegate.swift
+
+### 🛠️ Technical Updates
+- Added custom MethodChannel untuk APK installation
+- Updated AndroidManifest.xml dengan lengkap permissions
+- Created file_paths.xml untuk FileProvider configuration
+- Improved error handling untuk permission requests
+- Platform-specific permission checks (Android/iOS)
 
 ## 🎯 Fitur Mendatang
 
@@ -229,6 +256,7 @@ flutter build web --release
 - [x] **Advanced Caching**: Local cache dengan expiry management
 - [x] **Custom Loading Animations**: Loading widgets dengan shimmer effect
 - [x] **Glass Morphism UI**: Desain modern dengan efek glass
+- [x] **Auto Update System**: Automatic app update dengan progress indicator
 - [ ] **User Authentication**: Login/Register system
 - [ ] **Download Episodes**: Offline viewing
 - [ ] **Push Notifications**: Episode release notifications

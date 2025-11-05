@@ -36,6 +36,13 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^0.13.3
   url_launcher: ^6.0.9
+  package_info_plus: ^8.0.2
+  # install_plugin: ^2.1.0  # Replaced with more compatible plugin
+  # apk_installer: ^0.1.0  # Not available, using alternative approach
+  # open_file: ^3.3.2  # Not working for APK installation
+  file_picker: ^8.1.2
+  permission_handler: ^11.3.1
+  path_provider: ^2.1.3
   photo_view: ^0.15.0
   shared_preferences: ^2.5.3
   carousel_slider: 5.0.0

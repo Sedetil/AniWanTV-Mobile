@@ -5,10 +5,12 @@ import 'package:carousel_slider/carousel_controller.dart' as slider;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
+import '../services/app_version_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../widgets/custom_error_dialog.dart';
 import '../widgets/custom_loading_widget.dart';
+import '../widgets/update_dialog.dart';
 import '../providers/app_state_provider.dart';
 import 'anime_details_screen.dart';
 import 'comic_details_screen.dart';
@@ -58,6 +60,9 @@ class _HomeScreenState extends State<HomeScreen>
       Provider.of<AppStateProvider>(context, listen: false).initialize();
     });
 
+    // Check for app updates
+    _checkForAppUpdate();
+
     // Use preloaded content if available
     if (widget.preloadedAnime != null &&
         widget.preloadedComics != null &&
@@ -74,6 +79,30 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
 
+
+  // Check for app updates
+  Future<void> _checkForAppUpdate() async {
+    try {
+      final isUpdateAvailable = await AppVersionService.isUpdateAvailable();
+      if (isUpdateAvailable && mounted) {
+        final versionData = await AppVersionService.getAppVersion();
+        final changelog = await AppVersionService.getChangelog();
+        
+        // Show update dialog after a short delay to ensure UI is ready
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            UpdateDialog.show(
+              context: context,
+              latestVersion: versionData?['version'],
+              changelog: changelog,
+            );
+          }
+        });
+      }
+    } catch (e) {
+      print('Error checking for app update: $e');
+    }
+  }
 
   @override
   void dispose() {
