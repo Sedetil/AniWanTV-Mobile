@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:provider/provider.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
+import '../services/ad_service.dart';
+import '../providers/app_state_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -13,21 +16,17 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  final ApiService apiService = ApiService();
   late AnimationController _controller;
   late Animation<double> _animation;
   
-  // Interstitial Ad variables
-  InterstitialAd? _interstitialAd;
-  int _numInterstitialLoadAttempts = 0;
-  static const int maxFailedLoadAttempts = 3;
+  // AdService will handle ads
 
   @override
   void initState() {
     super.initState();
 
     // Load interstitial ad first
-    _createInterstitialAd();
+    AdService.loadInterstitialAd();
 
     // Setup animation
     _controller = AnimationController(
@@ -42,6 +41,11 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
+    // Initialize AppStateProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppStateProvider>(context, listen: false).initialize();
+    });
+
     // Check auth status after animation
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -52,24 +56,36 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _interstitialAd?.dispose();
+    AdService.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   Future<void> _checkAuthStatus() async {
-    // Bypass login check - always treat as logged in
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', true); // Set logged in to true
+    // Initialize AppStateProvider and check login status
+    final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+    await appStateProvider.initialize();
+    final isLoggedIn = appStateProvider.isLoggedIn;
 
     // Add a small delay to ensure animation is complete
     await Future.delayed(Duration(milliseconds: 500));
 
+    if (!isLoggedIn) {
+      // If not logged in, navigate to login screen
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => LoginScreen()),
+        );
+      }
+      return;
+    }
+
     try {
       // Preload content for HomeScreen
-      final anime = await apiService.fetchLatestAnime();
-      final comics = await apiService.fetchLatestComics();
-      final topAnime = await apiService.fetchTopAnime();
+      final anime = await ApiService.fetchLatestAnime();
+      final comics = await ApiService.fetchLatestComics();
+      final topAnime = await ApiService.fetchTopAnime();
 
       // Process data for HomeScreen
       final featuredAnime = topAnime
@@ -98,54 +114,12 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
-  void _createInterstitialAd() {
-    InterstitialAd.load(
-      adUnitId: 'ca-app-pub-7591838535085655/2876470342', // Test ID
-      request: AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (InterstitialAd ad) {
-          print('Interstitial ad loaded.');
-          _interstitialAd = ad;
-          _numInterstitialLoadAttempts = 0;
-        },
-        onAdFailedToLoad: (LoadAdError error) {
-          print('Interstitial ad failed to load: $error');
-          _numInterstitialLoadAttempts += 1;
-          _interstitialAd = null;
-          if (_numInterstitialLoadAttempts < maxFailedLoadAttempts) {
-            _createInterstitialAd();
-          }
-        },
-      ),
-    );
-  }
 
   void _showInterstitialAd(List<dynamic>? anime, List<dynamic>? comics,
       List<dynamic>? featuredContent) {
-    if (_interstitialAd == null) {
-      print('Warning: attempt to show interstitial before loaded.');
-      _navigateToHome(anime, comics, featuredContent);
-      return;
-    }
-    
-    _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (InterstitialAd ad) {
-        print('Interstitial ad showed full screen content.');
-      },
-      onAdDismissedFullScreenContent: (InterstitialAd ad) {
-        print('Interstitial ad dismissed.');
-        ad.dispose();
-        _navigateToHome(anime, comics, featuredContent);
-      },
-      onAdFailedToShowFullScreenContent: (InterstitialAd ad, AdError error) {
-        print('Interstitial ad failed to show full screen content: $error');
-        ad.dispose();
-        _navigateToHome(anime, comics, featuredContent);
-      },
+    AdService.showInterstitialAd(
+      onAdDismissed: () => _navigateToHome(anime, comics, featuredContent),
     );
-    
-    _interstitialAd!.show();
-    _interstitialAd = null;
   }
 
   void _navigateWithPreloadedData(List<dynamic>? anime, List<dynamic>? comics,

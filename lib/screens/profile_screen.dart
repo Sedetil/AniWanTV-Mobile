@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_error_dialog.dart';
+import '../providers/app_state_provider.dart';
 import 'history_screen.dart';
 import 'favorites_screen.dart';
+import 'login_screen.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -20,17 +23,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize AppStateProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppStateProvider>(context, listen: false).initialize();
+    });
     _loadUserData();
   }
 
   Future<void> _loadUserData() async {
     setState(() => isLoading = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.initialize();
+      
       setState(() {
-        username = prefs.getString('username') ?? 'Guest User';
-        email = prefs.getString('email') ?? 'guest@example.com';
-        isDarkMode = prefs.getBool('dark_mode') ?? false;
+        username = appStateProvider.username;
+        email = appStateProvider.email;
+        isDarkMode = appStateProvider.isDarkMode;
         isLoading = false;
       });
     } catch (e) {
@@ -50,10 +59,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _saveUserData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('username', username);
-      await prefs.setString('email', email);
-      await prefs.setBool('dark_mode', isDarkMode);
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.updateUserData(
+        username: username,
+        email: email,
+        isDarkMode: isDarkMode,
+      );
 
       Fluttertoast.showToast(
         msg: 'Profile updated successfully',
@@ -69,10 +80,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _logout() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('username');
-      await prefs.remove('email');
-      await prefs.remove('is_logged_in');
+      // Use AppStateProvider to handle logout
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.logout();
 
       Fluttertoast.showToast(
         msg: 'Logged out successfully',
@@ -83,7 +93,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       // Navigate back to login screen
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => LoginScreen()),
+        (route) => false,
+      );
     } catch (e) {
       _showErrorDialog('Error Logging Out', 'Failed to log out: $e');
     }
@@ -320,10 +333,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SizedBox(width: 8),
                     Text(
                       'Save Changes',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
                     ),
                   ],
                 ),
@@ -333,6 +342,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    inherit: true,
                   ),
                 ),
               ),
@@ -400,8 +414,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 value: isDarkMode,
                 onChanged: (value) {
                   setState(() => isDarkMode = value);
+                  // Update the theme in AppStateProvider
+                  Provider.of<AppStateProvider>(context, listen: false).updateUserData(isDarkMode: value);
                   _saveUserData();
-                  // Note: Actual theme change would require app-level state management
                 },
                 secondary: Container(
                   padding: EdgeInsets.all(8),
@@ -651,6 +666,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           elevation: 6,
           shadowColor: Colors.red.withOpacity(0.3),
+          textStyle: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+            inherit: true,
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -670,11 +691,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(width: 12),
             Text(
               'Logout',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
             ),
           ],
         ),

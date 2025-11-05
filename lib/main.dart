@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart' as ads;
+import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
+import 'providers/app_state_provider.dart';
+import 'services/ad_service.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
@@ -45,17 +48,28 @@ void main() async {
     },
   );
 
-  runApp(MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => AppStateProvider(),
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'AniWanTV',
-      theme: AppTheme.lightTheme,
-      home: SplashScreen(),
-      debugShowCheckedModeBanner: false,
+    return Consumer<AppStateProvider>(
+      builder: (context, appStateProvider, child) {
+        return MaterialApp(
+          title: 'AniWanTV',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: appStateProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          home: SplashScreen(),
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }

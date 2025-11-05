@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_error_dialog.dart';
+import '../providers/app_state_provider.dart';
 import 'anime_details_screen.dart';
 import 'comic_details_screen.dart';
 
@@ -12,7 +14,6 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _searchController = TextEditingController();
-  final ApiService _apiService = ApiService();
   List<dynamic> _searchResults = [];
   List<dynamic> _genres = [];
   bool _isLoading = false;
@@ -26,6 +27,12 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize AppStateProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppStateProvider>(context, listen: false).initialize();
+    });
+    
     _loadGenres();
   }
 
@@ -35,7 +42,7 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     try {
-      final genres = await _apiService.fetchGenres();
+      final genres = await ApiService.fetchGenres();
       if (mounted) {
         setState(() {
           _genres = genres;
@@ -60,7 +67,7 @@ class _SearchScreenState extends State<SearchScreen> {
       List<dynamic> allResults = [];
       
       if (genre['url'] != null) {
-        final genreContent = await _apiService.fetchGenreContent(genre['url']);
+        final genreContent = await ApiService.fetchGenreContent(genre['url']);
         if (genreContent['content'] != null) {
           // Tambahkan properti 'type' ke setiap item dan tangani tipe yang tidak dikenali
           allResults = genreContent['content'].map((item) {
@@ -124,8 +131,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
     try {
       // Pencarian biasa dengan query text
-      final animeResults = await _apiService.searchAnime(query);
-      final comicResults = await _apiService.searchComics(query);
+      final animeResults = await ApiService.searchAnime(query);
+      final comicResults = await ApiService.searchComics(query);
       
       // Tambahkan properti 'type' ke setiap item dan tangani tipe yang tidak dikenali
       final typedAnimeResults = animeResults.map((item) {
@@ -259,36 +266,72 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildSearchField() {
-    return Container(
-      height: 40,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: TextField(
-        controller: _searchController,
-        style: TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: 'Search anime or manga...',
-          hintStyle: TextStyle(color: Colors.white70),
-          prefixIcon: Icon(Icons.search, color: Colors.white70),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.clear, color: Colors.white70),
-                  onPressed: _clearSearch,
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-        ),
-        onSubmitted: (query) {
-          setState(() {
-            _selectedChip = '';
-          });
-          _performSearch(query);
-        },
-        textInputAction: TextInputAction.search,
-      ),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 600),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - value)),
+          child: Opacity(
+            opacity: value,
+            child: Container(
+              height: 50,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.08),
+                    Colors.white.withOpacity(0.03),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.15),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                style: TextStyle(color: Colors.white, fontSize: 16),
+                decoration: InputDecoration(
+                  hintText: 'Search anime or manga...',
+                  hintStyle: TextStyle(color: AppTheme.textSecondaryColor.withOpacity(0.7)),
+                  prefixIcon: Icon(Icons.search, color: AppTheme.textSecondaryColor),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear, color: AppTheme.textSecondaryColor),
+                          onPressed: _clearSearch,
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                    borderSide: BorderSide(color: AppTheme.accentColor, width: 2),
+                  ),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                onSubmitted: (query) {
+                  setState(() {
+                    _selectedChip = '';
+                  });
+                  _performSearch(query);
+                },
+                textInputAction: TextInputAction.search,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -328,52 +371,65 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildFilterChip(String label, bool isSelected) {
-    // Menentukan warna berdasarkan label
-    Color chipColor;
-    Color textColor;
-    Color backgroundColor;
-
-    if (label == 'Anime') {
-      chipColor =
-          isSelected ? AppTheme.primaryColor : Colors.white.withOpacity(0.1);
-      backgroundColor = isSelected
-          ? AppTheme.primaryColor
-          : AppTheme.primaryColor.withOpacity(0.2);
-      textColor = Colors.white;
-    } else if (label == 'Manga') {
-      chipColor =
-          isSelected ? AppTheme.accentColor : Colors.white.withOpacity(0.1);
-      backgroundColor = isSelected
-          ? AppTheme.accentColor
-          : AppTheme.accentColor.withOpacity(0.2);
-      textColor = isSelected ? Colors.black : Colors.black87;
-    } else {
-      // All
-      chipColor =
-          isSelected ? AppTheme.primaryColor : Colors.white.withOpacity(0.1);
-      backgroundColor =
-          isSelected ? AppTheme.primaryColor : Colors.grey.withOpacity(0.3);
-      textColor = isSelected ? Colors.white : Colors.white.withOpacity(0.9);
-    }
-
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      selectedColor: chipColor,
-      backgroundColor: backgroundColor,
-      checkmarkColor:
-          label == 'Manga' && isSelected ? Colors.black : Colors.white,
-      labelStyle: TextStyle(
-        color: textColor,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-      ),
-      onSelected: (selected) {
-        setState(() {
-          _selectedFilter = label;
-          if (_searchController.text.isNotEmpty) {
-            _performSearch(_searchController.text);
-          }
-        });
+    return StatefulBuilder(
+      builder: (context, setState) {
+        bool _isHovered = false;
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: AnimatedContainer(
+            duration: Duration(milliseconds: 200),
+            transform: Matrix4.identity()
+              ..scale(_isHovered ? 1.05 : 1.0),
+            child: FilterChip(
+              label: Text(label),
+              selected: isSelected,
+              selectedColor: label == 'Anime'
+                ? AppTheme.primaryColor
+                : label == 'Manga'
+                  ? AppTheme.accentColor
+                  : AppTheme.primaryColor,
+              backgroundColor: _isHovered
+                ? (label == 'Anime'
+                    ? AppTheme.primaryColor.withOpacity(0.25)
+                    : label == 'Manga'
+                      ? AppTheme.accentColor.withOpacity(0.25)
+                      : Colors.white.withOpacity(0.15))
+                : (label == 'Anime'
+                    ? AppTheme.primaryColor.withOpacity(0.2)
+                    : label == 'Manga'
+                      ? AppTheme.accentColor.withOpacity(0.2)
+                      : Colors.white.withOpacity(0.1)),
+              checkmarkColor: Colors.white,
+              labelStyle: TextStyle(
+                color: isSelected || _isHovered
+                  ? Colors.white
+                  : AppTheme.textSecondaryColor,
+                fontWeight: isSelected || _isHovered ? FontWeight.bold : FontWeight.normal,
+                fontSize: _isHovered ? 13 : 12,
+              ),
+              side: BorderSide(
+                color: isSelected || _isHovered
+                  ? (label == 'Anime'
+                      ? AppTheme.primaryColor
+                      : label == 'Manga'
+                        ? AppTheme.accentColor
+                        : AppTheme.primaryColor)
+                  : Colors.white.withOpacity(0.3),
+                width: isSelected || _isHovered ? 1.5 : 1.0,
+              ),
+              onSelected: (selected) {
+                setState(() {
+                  _selectedFilter = label;
+                  if (_searchController.text.isNotEmpty) {
+                    _performSearch(_searchController.text);
+                  }
+                });
+              },
+            ),
+          ),
+        );
       },
     );
   }
@@ -424,17 +480,36 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
           SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _clearSearch,
-            child: Text('Clear Search'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+          StatefulBuilder(
+            builder: (context, setState) {
+              bool _isHovered = false;
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => setState(() => _isHovered = true),
+                onExit: (_) => setState(() => _isHovered = false),
+                child: AnimatedContainer(
+                  duration: Duration(milliseconds: 200),
+                  transform: Matrix4.identity()
+                    ..scale(_isHovered ? 1.05 : 1.0),
+                  child: ElevatedButton(
+                    onPressed: _clearSearch,
+                    child: Text('Clear Search'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isHovered
+                        ? AppTheme.primaryColor.withOpacity(0.9)
+                        : AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                      ),
+                      elevation: _isHovered ? 8 : 4,
+                      shadowColor: AppTheme.primaryColor.withOpacity(0.3),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -523,28 +598,47 @@ class _SearchScreenState extends State<SearchScreen> {
                 children: _genres.isNotEmpty
                      ? _genres.take(8).map((genre) {
                          final isSelected = _selectedChip == genre['name'];
-                         return ActionChip(
-                           label: Text(
-                             genre['name'],
-                             style: TextStyle(
-                               color: isSelected ? AppTheme.backgroundColor : Colors.white,
-                               fontSize: 12,
-                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                             ),
-                           ),
-                           backgroundColor: isSelected 
-                               ? AppTheme.primaryColor 
-                               : AppTheme.primaryColor.withOpacity(0.2),
-                           side: BorderSide(
-                             color: AppTheme.primaryColor, 
-                             width: isSelected ? 2 : 1
-                           ),
-                           onPressed: () {
-                              setState(() {
-                                _selectedChip = genre['name'];
-                              });
-                              _performGenreSearch(genre);
-                            },
+                         return StatefulBuilder(
+                           builder: (context, setState) {
+                             bool _isHovered = false;
+                             return MouseRegion(
+                               cursor: SystemMouseCursors.click,
+                               onEnter: (_) => setState(() => _isHovered = true),
+                               onExit: (_) => setState(() => _isHovered = false),
+                               child: AnimatedContainer(
+                                 duration: Duration(milliseconds: 200),
+                                 transform: Matrix4.identity()
+                                   ..scale(_isHovered ? 1.05 : 1.0),
+                                 child: ActionChip(
+                                   label: Text(
+                                     genre['name'],
+                                     style: TextStyle(
+                                       color: isSelected || _isHovered
+                                         ? AppTheme.backgroundColor
+                                         : Colors.white,
+                                       fontSize: _isHovered ? 13 : 12,
+                                       fontWeight: isSelected || _isHovered ? FontWeight.bold : FontWeight.normal,
+                                     ),
+                                   ),
+                                   backgroundColor: isSelected || _isHovered
+                                     ? AppTheme.primaryColor
+                                     : AppTheme.primaryColor.withOpacity(0.2),
+                                   side: BorderSide(
+                                     color: isSelected || _isHovered
+                                       ? AppTheme.primaryColor
+                                       : AppTheme.primaryColor.withOpacity(0.5),
+                                     width: isSelected || _isHovered ? 2 : 1
+                                   ),
+                                   onPressed: () {
+                                      setState(() {
+                                        _selectedChip = genre['name'];
+                                      });
+                                      _performGenreSearch(genre);
+                                   },
+                                 ),
+                               ),
+                             );
+                           },
                          );
                        }).toList()
                      : popularSearches.map((search) {
@@ -609,140 +703,293 @@ class _SearchScreenState extends State<SearchScreen> {
     } else {
       // Log untuk debugging jika tipe tidak dikenali
       print('Unknown item type: $itemType for item: ${item['title']}');
-      return Card(
-        color: AppTheme.cardColor,
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppTheme.surfaceColor,
+              AppTheme.cardColor,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          boxShadow: AppTheme.subtleShadow,
+        ),
         child: Center(
           child: Text(
             'Unknown content type',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: AppTheme.textSecondaryColor),
           ),
         ),
       );
     }
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      color: AppTheme.cardColor,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => targetScreen!),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
+    return StatefulBuilder(
+      builder: (context, setState) {
+        bool _isHovered = false;
+        return AnimatedContainer(
+          duration: Duration(milliseconds: 200),
+          transform: Matrix4.identity()
+            ..scale(_isHovered ? 1.03 : 1.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => targetScreen!),
+                );
+              },
+              splashColor: AppTheme.primaryColor.withOpacity(0.1),
+              highlightColor: AppTheme.primaryColor.withOpacity(0.05),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => setState(() => _isHovered = true),
+                onExit: (_) => setState(() => _isHovered = false),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppTheme.surfaceColor,
+                        AppTheme.cardColor,
+                      ],
                     ),
-                    child: Image.network(
-                      item['image_url'] ?? '',
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[800],
-                          child: Center(
-                            child: Icon(Icons.broken_image, color: Colors.grey),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: itemType == 'anime'
-                            ? AppTheme.primaryColor
-                            : AppTheme.accentColor,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        itemType == 'anime' ? 'Anime' : 'Komik',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                    boxShadow: _isHovered
+                      ? AppTheme.mediumShadow
+                      : AppTheme.subtleShadow,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(_isHovered ? 0.1 : 0.05),
+                      width: 1.2,
                     ),
                   ),
-                  if (item['rating'] != null)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Stack(
                           children: [
-                            Icon(Icons.star, color: Colors.amber, size: 12),
-                            SizedBox(width: 2),
-                            Text(
-                              '${item['rating']}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 10,
+                            ClipRRect(
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(AppTheme.radiusMedium),
+                                topRight: Radius.circular(AppTheme.radiusMedium),
+                              ),
+                              child: Image.network(
+                                item['image_url'] ?? '',
+                                width: double.infinity,
+                                height: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          AppTheme.surfaceColor,
+                                          AppTheme.cardColor,
+                                        ],
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Icon(Icons.broken_image, color: AppTheme.textSecondaryColor),
+                                    ),
+                                  );
+                                },
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          AppTheme.surfaceColor,
+                                          AppTheme.cardColor,
+                                        ],
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        value: loadingProgress.expectedTotalBytes != null
+                                            ? loadingProgress.cumulativeBytesLoaded /
+                                                loadingProgress.expectedTotalBytes!
+                                            : null,
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          AppTheme.primaryColor,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: AnimatedContainer(
+                                duration: Duration(milliseconds: 200),
+                                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  gradient: itemType == 'anime'
+                                      ? AppTheme.primaryGradient
+                                      : LinearGradient(
+                                          colors: [
+                                            AppTheme.accentColor,
+                                            AppTheme.accentColor.withOpacity(0.8),
+                                          ],
+                                        ),
+                                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                                  border: Border.all(
+                                    color: itemType == 'anime'
+                                        ? AppTheme.primaryColor.withOpacity(0.3)
+                                        : AppTheme.accentColor.withOpacity(0.3),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: itemType == 'anime'
+                                          ? AppTheme.primaryColor.withOpacity(0.2)
+                                          : AppTheme.accentColor.withOpacity(0.2),
+                                      blurRadius: 6,
+                                      spreadRadius: 0,
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  itemType == 'anime' ? 'Anime' : 'Komik',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (item['rating'] != null)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: AnimatedContainer(
+                                  duration: Duration(milliseconds: 200),
+                                  padding:
+                                      EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.black.withOpacity(0.8),
+                                        Colors.black.withOpacity(0.6),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                                    border: Border.all(
+                                      color: Colors.amber.withOpacity(0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.star, color: Colors.amber, size: 12),
+                                      SizedBox(width: 2),
+                                      Text(
+                                        '${item['rating']}',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            // Gradient overlay for better text readability
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.transparent,
+                                      Colors.black.withOpacity(_isHovered ? 0.4 : 0.3),
+                                    ],
+                                    stops: [0.0, 0.6, 1.0],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // Play button overlay on hover
+                            if (_isHovered)
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: RadialGradient(
+                                      center: Alignment.center,
+                                      radius: 0.8,
+                                      colors: [
+                                        Colors.black.withOpacity(0.3),
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.play_circle_filled,
+                                    color: Colors.white.withOpacity(0.9),
+                                    size: 40,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item['title'] ?? 'No Title',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.white,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (item['genres'] != null && item['genres'].isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        item['genres'][0],
-                        style: TextStyle(
-                          color: AppTheme.textSecondaryColor,
-                          fontSize: 12,
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['title'] ?? 'No Title',
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: _isHovered
+                                  ? AppTheme.primaryColor.withOpacity(0.9)
+                                  : Colors.white,
+                                height: 1.2,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (item['genres'] != null && item['genres'].isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6.0),
+                                child: Text(
+                                  item['genres'][0],
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondaryColor,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

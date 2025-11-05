@@ -235,6 +235,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   void _disposeControllers() {
     try {
       print('Disposing controllers...');
+      
+      // Cancel any pending timers first
+      _qualityChangeTimer?.cancel();
+      _qualityChangeTimer = null;
 
       // Handle Chewie controller disposal
       if (_chewieController != null) {

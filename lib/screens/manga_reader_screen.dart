@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_error_dialog.dart';
+import '../providers/app_state_provider.dart';
 import 'dart:convert';
 import '../services/api_service.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -57,7 +59,6 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
   String? _prevChapterUrl;
   String? _chapterListUrl;
 
-  final ApiService apiService = ApiService();
 
   @override
   void initState() {
@@ -97,7 +98,7 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
       _error = null;
     });
     try {
-      final chapter = await apiService.fetchChapterImages(url);
+      final chapter = await ApiService.fetchChapterImages(url);
       final List<String> pages = List<String>.from(
         (chapter['images'] as List).map((img) => (img['url'] as String).trim()),
       );
@@ -134,26 +135,20 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
 
   Future<void> _saveToHistory(Map<String, dynamic> chapter, String url) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final historyJson = prefs.getString('comic_history') ?? '[]';
-      List<dynamic> history = jsonDecode(historyJson);
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.initialize();
+      
       final historyItem = {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'title': chapter['title'],
         'image_url': widget.comicImageUrl ??
             chapter['cover_image'] ??
             'https://via.placeholder.com/150',
         'url': url,
         'chapter': widget.chapterId ?? chapter['chapter_number'] ?? 'Unknown',
-        'timestamp': DateTime.now().toString(),
         'type': 'comic',
       };
-      history.removeWhere((item) => item['url'] == url);
-      history.insert(0, historyItem);
-      if (history.length > 50) {
-        history = history.sublist(0, 50);
-      }
-      await prefs.setString('comic_history', jsonEncode(history));
+      
+      await appStateProvider.addToHistory(historyItem, false);
     } catch (e) {
       _showErrorDialog('History Error', 'Failed to save to history: $e');
     }
@@ -161,24 +156,18 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
 
   Future<void> _saveToHistoryDirect() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final historyJson = prefs.getString('comic_history') ?? '[]';
-      List<dynamic> history = jsonDecode(historyJson);
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.initialize();
+      
       final historyItem = {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'title': widget.title ?? 'Chapter',
         'image_url': widget.comicImageUrl ?? 'https://via.placeholder.com/150',
         'url': widget.url ?? '',
         'chapter': widget.chapterId ?? 'Unknown',
-        'timestamp': DateTime.now().toString(),
         'type': 'comic',
       };
-      history.removeWhere((item) => item['url'] == widget.url);
-      history.insert(0, historyItem);
-      if (history.length > 50) {
-        history = history.sublist(0, 50);
-      }
-      await prefs.setString('comic_history', jsonEncode(history));
+      
+      await appStateProvider.addToHistory(historyItem, false);
     } catch (e) {
       _showErrorDialog('History Error', 'Failed to save to history: $e');
     }

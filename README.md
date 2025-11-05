@@ -18,20 +18,34 @@ Aplikasi mobile streaming anime dan manga yang dibangun dengan Flutter. AniWanTV
 
 ### 🔍 Pencarian & Navigasi
 - **Advanced Search**: Pencarian anime dan manga dengan filter
-- **Favorites System**: Simpan anime/manga favorit
-- **Watch History**: Riwayat tontonan dengan auto-resume
+- **Genre Filtering**: Filter konten berdasarkan genre (Action, Romance, Comedy, dll)
+- **Year-based Filtering**: Filter konten berdasarkan tahun rilis
+- **Favorites System**: Simpan anime/manga favorit dengan local storage
+- **Watch History**: Riwayat tontonan dengan auto-resume dan timestamp
 - **Bottom Navigation**: Navigasi intuitif dengan 5 tab utama
+- **Explore Screen**: Layar eksplorasi dengan tab Anime dan Manga terpisah
 
 ### 🎨 UI/UX Features
-- **Dark Theme**: Tema gelap yang nyaman untuk mata
+- **Dark Theme**: Tema gelap yang nyaman untuk mata dengan toggle option
 - **Responsive Design**: Optimized untuk phone dan tablet
 - **Carousel Slider**: Tampilan featured content yang menarik
-- **Custom Widgets**: Komponen UI yang konsisten
-- **Error Handling**: Dialog error yang informatif
+- **Custom Widgets**: Komponen UI yang konsisten dan reusable
+- **Error Handling**: Dialog error yang informatif dengan retry mechanism
+- **Custom Loading Widgets**: Animasi loading yang menarik dengan shimmer effect
+- **Progress Indicators**: Indikator progres dengan persentase untuk operasi async
+- **Glass Morphism Design**: Desain modern dengan efek glass dan gradient
+- **Hover Effects**: Efek hover yang smooth untuk desktop/web
 
 ### 💰 Monetization
 - **Google AdMob**: Integrasi iklan dengan GDPR/CCPA compliance
 - **UMP (User Messaging Platform)**: Consent management
+
+### 🚀 Performance & Caching
+- **API Response Caching**: Local cache dengan expiry 5 menit
+- **Cache Management**: Kontrol cache untuk optimasi performa
+- **Timeout Handling**: Timeout 30 detik untuk semua request
+- **Error Recovery**: Fallback endpoints untuk critical operations
+- **Lazy Loading**: Load data sesuai kebutuhan untuk menghemat bandwidth
 
 ## 🏗️ Arsitektur Aplikasi
 
@@ -43,6 +57,7 @@ lib/
 │   ├── splash_screen.dart    # Splash screen
 │   ├── home_screen.dart      # Beranda utama
 │   ├── search_screen.dart    # Pencarian
+│   ├── explore_screen.dart   # Eksplorasi konten dengan genre filter
 │   ├── anime_details_screen.dart  # Detail anime
 │   ├── episode_streams_screen.dart # Daftar episode
 │   ├── video_player_screen.dart   # Video player
@@ -56,9 +71,13 @@ lib/
 ├── widgets/                  # Custom widgets
 │   ├── custom_bottom_nav_bar.dart # Bottom navigation
 │   ├── custom_controls.dart       # Video player controls
-│   └── custom_error_dialog.dart   # Error dialog
+│   ├── custom_error_dialog.dart   # Error dialog
+│   └── custom_loading_widget.dart # Loading animations
 ├── services/                 # Backend services
-│   └── api_service.dart      # API integration
+│   ├── api_service.dart      # API integration dengan caching
+│   └── ad_service.dart       # AdMob integration
+├── providers/                # State management
+│   └── app_state_provider.dart # Global app state
 └── theme/                    # Theme configuration
     └── app_theme.dart        # App theme settings
 ```
@@ -86,8 +105,8 @@ lib/
 - `webview_flutter`: WebView integration
 
 #### State Management
-- `flutter_bloc`: BLoC pattern untuk state management
-- `equatable`: Object equality comparison
+- `provider`: State management dengan ChangeNotifier
+- `shared_preferences`: Local storage persistence
 
 #### Monetization
 - `google_mobile_ads`: Google AdMob integration
@@ -100,14 +119,20 @@ lib/
 
 ### API Endpoints
 Aplikasi terhubung dengan Flask API backend yang di-deploy di Railway:
-- **Base URL**: `https://web-production-ced7.up.railway.app`
+- **Base URL**: `https://web-production-0b9b9.up.railway.app`
 - **Top Anime**: `/top-anime`
 - **Latest Anime**: `/latest-anime?page={page}`
 - **Anime Details**: `/anime-details?url={url}`
 - **Episode Streams**: `/episode-streams-fast?url={url}`
-- **Search**: `/search?query={query}`
+- **Episode Streams (Fallback)**: `/episode-streams?url={url}`
+- **Search Anime**: `/search?query={query}`
+- **Search Comics**: `/search-comics?query={query}`
+- **Latest Comics**: `/latest-comics?page={page}`
 - **Comic Details**: `/comic-details?url={url}`
-- **Comic Chapters**: `/comic-chapters?url={url}`
+- **Chapter Images**: `/chapter-images?url={url}`
+- **Genres**: `/genres`
+- **Genre Content**: `/genre-content?url={url}&page={page}`
+- **Cache Management**: `/clear-stream-cache`, `/cache-info`, `/optimization-status`
 
 ### Data Sources
 Backend melakukan scraping dari:
@@ -199,10 +224,16 @@ flutter build web --release
 
 ## 🎯 Fitur Mendatang
 
+- [x] **Genre Filtering**: Filter konten berdasarkan kategori
+- [x] **Year-based Filtering**: Filter konten berdasarkan tahun rilis
+- [x] **Advanced Caching**: Local cache dengan expiry management
+- [x] **Custom Loading Animations**: Loading widgets dengan shimmer effect
+- [x] **Glass Morphism UI**: Desain modern dengan efek glass
 - [ ] **User Authentication**: Login/Register system
 - [ ] **Download Episodes**: Offline viewing
 - [ ] **Push Notifications**: Episode release notifications
 - [ ] **Social Features**: Comments dan ratings
 - [ ] **Subtitle Support**: Multiple language subtitles
 - [ ] **Chromecast Support**: Cast ke TV
-- [ ] **Dark/Light Theme Toggle
+- [ ] **Watchlist Management**: Daftar tonton terorganisir
+- [ ] **Recommendation System**: Rekomendasi konten berdasarkan preferensi

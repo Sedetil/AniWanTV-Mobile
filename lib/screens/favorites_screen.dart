@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_error_dialog.dart';
+import '../providers/app_state_provider.dart';
 import 'anime_details_screen.dart';
 import 'comic_details_screen.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -16,7 +16,6 @@ class FavoritesScreen extends StatefulWidget {
 class _FavoritesScreenState extends State<FavoritesScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ApiService apiService = ApiService();
   List<dynamic> favoriteAnime = [];
   List<dynamic> favoriteComics = [];
   bool isLoading = true;
@@ -25,6 +24,12 @@ class _FavoritesScreenState extends State<FavoritesScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    
+    // Initialize AppStateProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppStateProvider>(context, listen: false).initialize();
+    });
+    
     _loadFavorites();
   }
 
@@ -37,13 +42,12 @@ class _FavoritesScreenState extends State<FavoritesScreen>
   Future<void> _loadFavorites() async {
     setState(() => isLoading = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final animeJson = prefs.getString('favorite_anime') ?? '[]';
-      final comicsJson = prefs.getString('favorite_comics') ?? '[]';
-
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.initialize();
+      
       setState(() {
-        favoriteAnime = jsonDecode(animeJson);
-        favoriteComics = jsonDecode(comicsJson);
+        favoriteAnime = appStateProvider.favoriteAnime;
+        favoriteComics = appStateProvider.favoriteComics;
         isLoading = false;
       });
     } catch (e) {
@@ -64,18 +68,14 @@ class _FavoritesScreenState extends State<FavoritesScreen>
 
   Future<void> _removeFavorite(String id, bool isAnime) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = isAnime ? 'favorite_anime' : 'favorite_comics';
-      final list = isAnime ? favoriteAnime : favoriteComics;
-
-      final updatedList = list.where((item) => item['id'] != id).toList();
-      await prefs.setString(key, jsonEncode(updatedList));
-
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.removeFromFavorites(id, isAnime);
+      
       setState(() {
         if (isAnime) {
-          favoriteAnime = updatedList;
+          favoriteAnime = appStateProvider.favoriteAnime;
         } else {
-          favoriteComics = updatedList;
+          favoriteComics = appStateProvider.favoriteComics;
         }
       });
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_error_dialog.dart';
+import '../providers/app_state_provider.dart';
 import 'anime_details_screen.dart';
 import 'comic_details_screen.dart';
 import 'video_player_screen.dart';
@@ -18,7 +18,6 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ApiService apiService = ApiService();
   List<dynamic> animeHistory = [];
   List<dynamic> comicHistory = [];
   bool isLoading = true;
@@ -27,6 +26,12 @@ class _HistoryScreenState extends State<HistoryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    
+    // Initialize AppStateProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppStateProvider>(context, listen: false).initialize();
+    });
+    
     _loadHistory();
   }
 
@@ -39,13 +44,12 @@ class _HistoryScreenState extends State<HistoryScreen>
   Future<void> _loadHistory() async {
     setState(() => isLoading = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final animeJson = prefs.getString('anime_history') ?? '[]';
-      final comicsJson = prefs.getString('comic_history') ?? '[]';
-
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.initialize();
+      
       setState(() {
-        animeHistory = jsonDecode(animeJson);
-        comicHistory = jsonDecode(comicsJson);
+        animeHistory = appStateProvider.animeHistory;
+        comicHistory = appStateProvider.comicHistory;
         isLoading = false;
       });
     } catch (e) {
@@ -65,16 +69,14 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   Future<void> _clearHistory(bool isAnime) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = isAnime ? 'anime_history' : 'comic_history';
-
-      await prefs.setString(key, '[]');
-
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.clearHistory(isAnime);
+      
       setState(() {
         if (isAnime) {
-          animeHistory = [];
+          animeHistory = appStateProvider.animeHistory;
         } else {
-          comicHistory = [];
+          comicHistory = appStateProvider.comicHistory;
         }
       });
 
@@ -92,18 +94,14 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   Future<void> _removeHistoryItem(String id, bool isAnime) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = isAnime ? 'anime_history' : 'comic_history';
-      final list = isAnime ? animeHistory : comicHistory;
-
-      final updatedList = list.where((item) => item['id'] != id).toList();
-      await prefs.setString(key, jsonEncode(updatedList));
-
+      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      await appStateProvider.removeFromHistory(id, isAnime);
+      
       setState(() {
         if (isAnime) {
-          animeHistory = updatedList;
+          animeHistory = appStateProvider.animeHistory;
         } else {
-          comicHistory = updatedList;
+          comicHistory = appStateProvider.comicHistory;
         }
       });
 
@@ -140,7 +138,7 @@ class _HistoryScreenState extends State<HistoryScreen>
           labelStyle: TextStyle(fontWeight: FontWeight.bold),
           tabs: [
             Tab(text: 'ANIME'),
-            Tab(text: 'MANGA'),
+            Tab(text: 'COMIC'),
           ],
         ),
         actions: [

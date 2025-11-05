@@ -1,11 +1,15 @@
+import 'package:aniwantv/screens/explore_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:carousel_slider/carousel_controller.dart' as slider;
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../widgets/custom_error_dialog.dart';
+import '../widgets/custom_loading_widget.dart';
+import '../providers/app_state_provider.dart';
 import 'anime_details_screen.dart';
 import 'comic_details_screen.dart';
 import 'search_screen.dart';
@@ -32,7 +36,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  final ApiService apiService = ApiService();
   final slider.CarouselSliderController carouselController =
       slider.CarouselSliderController();
 
@@ -43,11 +46,17 @@ class _HomeScreenState extends State<HomeScreen>
   int _currentCarouselIndex = 0;
   int _currentNavIndex = 0;
   late TabController _tabController;
+  bool _isFabHovered = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    
+    // Initialize AppStateProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppStateProvider>(context, listen: false).initialize();
+    });
 
     // Use preloaded content if available
     if (widget.preloadedAnime != null &&
@@ -77,9 +86,9 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _loadContent() async {
     setState(() => isLoading = true);
     try {
-      final anime = await apiService.fetchLatestAnime();
-      final comics = await apiService.fetchLatestComics();
-      final topAnime = await apiService.fetchTopAnime();
+      final anime = await ApiService.fetchLatestAnime();
+      final comics = await ApiService.fetchLatestComics();
+      final topAnime = await ApiService.fetchTopAnime();
 
       if (mounted) {
         setState(() {
@@ -134,13 +143,10 @@ class _HomeScreenState extends State<HomeScreen>
         break;
       case 1:
         // Explore
-        Fluttertoast.showToast(
-          msg: 'Explore coming soon',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: AppTheme.primaryColor,
-          textColor: Colors.white,
-        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => ExploreScreen()),
+        ).then((_) => setState(() => _currentNavIndex = 0));
         break;
       case 2:
         // Favorites
@@ -198,16 +204,87 @@ class _HomeScreenState extends State<HomeScreen>
           currentIndex: _currentNavIndex,
           onTap: _handleNavigation,
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => SearchScreen()),
+        floatingActionButton: StatefulBuilder(
+          builder: (context, setState) {
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onEnter: (_) => setState(() => _isFabHovered = true),
+              onExit: (_) => setState(() => _isFabHovered = false),
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 200),
+                width: 56,
+                height: 56,
+                transform: Matrix4.identity()
+                  ..scale(_isFabHovered ? 1.1 : 1.0),
+                decoration: BoxDecoration(
+                  gradient: _isFabHovered
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppTheme.primaryColor.withOpacity(0.95),
+                          AppTheme.primaryColor.withOpacity(0.75),
+                          AppTheme.accentColor.withOpacity(0.65),
+                        ],
+                      )
+                    : AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: _isFabHovered
+                    ? [
+                        BoxShadow(
+                          color: AppTheme.primaryColor.withOpacity(0.4),
+                          blurRadius: 16,
+                          spreadRadius: 0,
+                          offset: Offset(0, 6),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 10,
+                          spreadRadius: 0,
+                          offset: Offset(0, 4),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: AppTheme.primaryColor.withOpacity(0.3),
+                          blurRadius: 12,
+                          spreadRadius: 0,
+                          offset: Offset(0, 4),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 8,
+                          spreadRadius: 0,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => SearchScreen()),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(28),
+                    splashColor: Colors.white.withOpacity(0.2),
+                    highlightColor: Colors.white.withOpacity(0.1),
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      child: Icon(
+                        Icons.search,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             );
           },
-          backgroundColor: AppTheme.primaryColor,
-          child: const Icon(Icons.search, color: Colors.white),
-          elevation: 4,
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       ),
@@ -215,38 +292,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildLoadingView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.play_circle_fill,
-              size: 70,
-              color: AppTheme.primaryColor,
-            ),
-          ),
-          const SizedBox(height: 20),
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Loading amazing content...',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade400,
-            ),
-          ),
-        ],
-      ),
+    return CustomLoadingWidget(
+      message: 'Loading amazing content...',
+      size: 100,
     );
   }
 
@@ -301,7 +349,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildCarousel(double screenWidth, double screenHeight) {
-    final carouselHeight = screenHeight * 0.25;
+    final carouselHeight = screenHeight * 0.28;
 
     return Column(
       children: [
@@ -317,7 +365,7 @@ class _HomeScreenState extends State<HomeScreen>
             autoPlayAnimationDuration: const Duration(milliseconds: 800),
             autoPlayCurve: Curves.fastOutSlowIn,
             enlargeCenterPage: true,
-            enlargeFactor: 0.2,
+            enlargeFactor: 0.15,
             scrollDirection: Axis.horizontal,
             onPageChanged: (index, reason) {
               setState(() {
@@ -331,167 +379,240 @@ class _HomeScreenState extends State<HomeScreen>
             final isActive = index == _currentCarouselIndex;
             return Builder(
               builder: (BuildContext context) {
-                return GestureDetector(
-                  onTap: () {
-                    // Ensure correct navigation based on content type
-                    if (item['type'] == 'anime') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              AnimeDetailsScreen(url: item['url']),
-                        ),
-                      );
-                    } else if (item['type'] == 'comic') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              ComicDetailsScreen(url: item['url']),
-                        ),
-                      );
-                    } else {
-                      // Show error if type is undefined
-                      Fluttertoast.showToast(
-                        msg: 'Konten tidak dapat dibuka',
-                        toastLength: Toast.LENGTH_SHORT,
-                        gravity: ToastGravity.BOTTOM,
-                        backgroundColor: Colors.red,
-                        textColor: Colors.white,
-                      );
-                    }
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                    child: Stack(
-                      children: [
-                        // Image with gradient overlay
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16.0),
-                          child: Hero(
-                            tag: 'featured-${item['url']}',
-                            child: ShaderMask(
-                              shaderCallback: (rect) {
-                                return LinearGradient(
+                return AnimatedContainer(
+                  duration: Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: GestureDetector(
+                    onTap: () {
+                      // Ensure correct navigation based on content type
+                      if (item['type'] == 'anime') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                AnimeDetailsScreen(url: item['url']),
+                          ),
+                        );
+                      } else if (item['type'] == 'comic') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ComicDetailsScreen(url: item['url']),
+                          ),
+                        );
+                      } else {
+                        // Show error if type is undefined
+                        Fluttertoast.showToast(
+                          msg: 'Konten tidak dapat dibuka',
+                          toastLength: Toast.LENGTH_SHORT,
+                          gravity: ToastGravity.BOTTOM,
+                          backgroundColor: Colors.red,
+                          textColor: Colors.white,
+                        );
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 5.0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                        boxShadow: isActive
+                            ? AppTheme.heavyShadow
+                            : AppTheme.subtleShadow,
+                      ),
+                      child: Stack(
+                        children: [
+                          // Image with enhanced gradient overlay
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                            child: Hero(
+                              tag: 'featured-${item['url']}',
+                              child: ShaderMask(
+                                shaderCallback: (rect) {
+                                  return LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withOpacity(0.4),
+                                      Colors.black.withOpacity(0.8),
+                                    ],
+                                    stops: [0.0, 0.6, 1.0],
+                                  ).createShader(rect);
+                                },
+                                blendMode: BlendMode.darken,
+                                child: Image.network(
+                                  item['image_url'],
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  errorBuilder: (ctx, error, stackTrace) =>
+                                      Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          AppTheme.surfaceColor,
+                                          AppTheme.cardColor,
+                                        ],
+                                      ),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(Icons.broken_image,
+                                          size: 40, color: AppTheme.textSecondaryColor),
+                                    ),
+                                  ),
+                                  loadingBuilder: (ctx, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            AppTheme.surfaceColor,
+                                            AppTheme.cardColor,
+                                          ],
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          value: loadingProgress
+                                                      .expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                              : null,
+                                          strokeWidth: 3,
+                                          valueColor: AlwaysStoppedAnimation<Color>(
+                                            AppTheme.primaryColor,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Enhanced content info with glassmorphism
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0, vertical: 16.0),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
                                   begin: Alignment.topCenter,
                                   end: Alignment.bottomCenter,
                                   colors: [
                                     Colors.transparent,
+                                    Colors.black.withOpacity(0.3),
                                     Colors.black.withOpacity(0.8),
                                   ],
-                                ).createShader(rect);
-                              },
-                              blendMode: BlendMode.darken,
-                              child: Image.network(
-                                item['image_url'],
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity,
-                                errorBuilder: (ctx, error, stackTrace) =>
-                                    Container(
-                                  color: Colors.grey[800],
-                                  child: const Center(
-                                    child: Icon(Icons.broken_image,
-                                        size: 40, color: Colors.grey),
-                                  ),
                                 ),
-                                loadingBuilder: (ctx, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
-                                    color: Colors.grey[800],
-                                    child: Center(
-                                      child: CircularProgressIndicator(
-                                        value: loadingProgress
-                                                    .expectedTotalBytes !=
-                                                null
-                                            ? loadingProgress
-                                                    .cumulativeBytesLoaded /
-                                                loadingProgress
-                                                    .expectedTotalBytes!
-                                            : null,
-                                        strokeWidth: 2,
-                                        color: AppTheme.primaryColor,
+                                borderRadius: BorderRadius.only(
+                                  bottomLeft: Radius.circular(AppTheme.radiusLarge),
+                                  bottomRight: Radius.circular(AppTheme.radiusLarge),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  AnimatedContainer(
+                                    duration: Duration(milliseconds: 300),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      gradient: isActive
+                                          ? (item['type'] == 'anime'
+                                              ? AppTheme.primaryGradient
+                                              : item['type'] == 'comic'
+                                                  ? LinearGradient(
+                                                      colors: [
+                                                        AppTheme.accentColor,
+                                                        AppTheme.accentColor.withOpacity(0.8),
+                                                      ],
+                                                    )
+                                                  : LinearGradient(
+                                                      colors: [
+                                                        Colors.grey,
+                                                        Colors.grey.withOpacity(0.8),
+                                                      ],
+                                                    ))
+                                          : AppTheme.glassGradient,
+                                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                                      border: Border.all(
+                                        color: isActive
+                                            ? (item['type'] == 'anime'
+                                                ? AppTheme.primaryColor
+                                                : item['type'] == 'comic'
+                                                    ? AppTheme.accentColor
+                                                    : Colors.grey)
+                                            : Colors.white.withOpacity(0.3),
+                                        width: 1.5,
+                                      ),
+                                      boxShadow: isActive
+                                          ? [
+                                              BoxShadow(
+                                                color: (item['type'] == 'anime'
+                                                        ? AppTheme.primaryColor
+                                                        : item['type'] == 'comic'
+                                                            ? AppTheme.accentColor
+                                                            : Colors.grey)
+                                                    .withOpacity(0.3),
+                                                blurRadius: 8,
+                                                spreadRadius: 0,
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Text(
+                                      item['type'] == 'anime'
+                                          ? 'ANIME'
+                                          : item['type'] == 'comic'
+                                              ? 'KOMIK'
+                                              : 'UNKNOWN',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.0,
                                       ),
                                     ),
-                                  );
-                                },
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    item['title'],
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16.0,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: [
+                                        Shadow(
+                                          blurRadius: 8.0,
+                                          color: Colors.black,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                      height: 1.2,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ),
-
-                        // Content info
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16.0, vertical: 12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: isActive
-                                        ? (item['type'] == 'anime'
-                                            ? AppTheme.primaryColor
-                                            : item['type'] == 'comic'
-                                                ? AppTheme.accentColor
-                                                : Colors.grey)
-                                        : Colors.white.withOpacity(0.3),
-                                    border: Border.all(
-                                      color: isActive
-                                          ? (item['type'] == 'anime'
-                                              ? AppTheme.primaryColor
-                                              : item['type'] == 'comic'
-                                                  ? AppTheme.accentColor
-                                                  : Colors.grey)
-                                          : Colors.white.withOpacity(0.5),
-                                      width: 1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    item['type'] == 'anime'
-                                        ? 'ANIME'
-                                        : item['type'] == 'comic'
-                                            ? 'KOMIK'
-                                            : 'UNKNOWN',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  item['title'],
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16.0,
-                                    fontWeight: FontWeight.bold,
-                                    shadows: [
-                                      Shadow(
-                                        blurRadius: 5.0,
-                                        color: Colors.black,
-                                        offset: Offset(0, 1),
-                                      ),
-                                    ],
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                // Rating removed as requested
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -499,23 +620,39 @@ class _HomeScreenState extends State<HomeScreen>
             );
           }).toList(),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
 
-        // Carousel indicators
+        // Enhanced carousel indicators
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: featuredContent.asMap().entries.map((entry) {
+            final isActive = _currentCarouselIndex == entry.key;
             return GestureDetector(
               onTap: () => carouselController.animateToPage(entry.key),
-              child: Container(
-                width: 8.0,
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 300),
+                width: isActive ? 24.0 : 8.0,
                 height: 8.0,
                 margin: const EdgeInsets.symmetric(horizontal: 4.0),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _currentCarouselIndex == entry.key
-                      ? AppTheme.primaryColor
-                      : Colors.grey.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(4.0),
+                  gradient: isActive
+                      ? AppTheme.primaryGradient
+                      : LinearGradient(
+                          colors: [
+                            Colors.grey.withOpacity(0.5),
+                            Colors.grey.withOpacity(0.3),
+                          ],
+                        ),
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: AppTheme.primaryColor.withOpacity(0.3),
+                            blurRadius: 4,
+                            spreadRadius: 0,
+                          ),
+                        ]
+                      : null,
                 ),
               ),
             );
@@ -527,14 +664,27 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildQuickActions() {
     return Container(
-      margin: const EdgeInsets.only(top: 24, bottom: 8),
+      margin: const EdgeInsets.only(top: 24, bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Card(
-        color: AppTheme.cardColor,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppTheme.surfaceColor,
+              AppTheme.cardColor,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+          boxShadow: AppTheme.mediumShadow,
+          border: Border.all(
+            color: Colors.white.withOpacity(0.05),
+            width: 1,
+          ),
+        ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          padding: const EdgeInsets.symmetric(vertical: 20.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -584,57 +734,135 @@ class _HomeScreenState extends State<HomeScreen>
     required String label,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.1),
-                shape: BoxShape.circle,
+    return StatefulBuilder(
+      builder: (context, setState) {
+        bool _isHovered = false;
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+              splashColor: AppTheme.primaryColor.withOpacity(0.1),
+              highlightColor: AppTheme.primaryColor.withOpacity(0.05),
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                transform: Matrix4.identity()
+                  ..scale(_isHovered ? 1.05 : 1.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedContainer(
+                      duration: Duration(milliseconds: 200),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: _isHovered
+                            ? [
+                                AppTheme.primaryColor.withOpacity(0.25),
+                                AppTheme.primaryColor.withOpacity(0.15),
+                              ]
+                            : [
+                                AppTheme.primaryColor.withOpacity(0.15),
+                                AppTheme.primaryColor.withOpacity(0.05),
+                              ],
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _isHovered
+                            ? AppTheme.primaryColor.withOpacity(0.3)
+                            : AppTheme.primaryColor.withOpacity(0.2),
+                          width: 1.5,
+                        ),
+                        boxShadow: _isHovered
+                          ? [
+                              BoxShadow(
+                                color: AppTheme.primaryColor.withOpacity(0.2),
+                                blurRadius: 12,
+                                spreadRadius: 0,
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: AppTheme.primaryColor.withOpacity(0.1),
+                                blurRadius: 8,
+                                spreadRadius: 0,
+                              ),
+                            ],
+                      ),
+                      child: Icon(
+                        icon,
+                        color: _isHovered
+                          ? AppTheme.primaryColor.withOpacity(0.9)
+                          : AppTheme.primaryColor,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    AnimatedDefaultTextStyle(
+                      duration: Duration(milliseconds: 200),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: _isHovered
+                          ? AppTheme.primaryColor.withOpacity(0.9)
+                          : Colors.white,
+                        letterSpacing: 0.5,
+                        fontSize: _isHovered ? 13 : 12,
+                      ),
+                      child: Text(label),
+                    ),
+                  ],
+                ),
               ),
-              child: Icon(icon, color: AppTheme.primaryColor, size: 28),
             ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildContentTabs(bool isTablet) {
     return Column(
       children: [
-        // Tab bar
+        // Enhanced tab bar with glassmorphism
         Container(
-          margin: const EdgeInsets.only(top: 16, bottom: 8),
+          margin: const EdgeInsets.only(top: 24, bottom: 16),
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: Colors.grey.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(25),
+            gradient: AppTheme.glassGradient,
+            borderRadius: BorderRadius.circular(AppTheme.radiusXLarge),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+            boxShadow: AppTheme.subtleShadow,
           ),
-          width: 240,
+          width: 260,
           child: TabBar(
             controller: _tabController,
             indicator: BoxDecoration(
-              borderRadius: BorderRadius.circular(25),
-              color: AppTheme.primaryColor,
+              borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+              gradient: AppTheme.primaryGradient,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryColor.withOpacity(0.3),
+                  blurRadius: 8,
+                  spreadRadius: 0,
+                ),
+              ],
             ),
             labelColor: Colors.white,
-            unselectedLabelColor: Colors.grey.shade400,
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+            unselectedLabelColor: AppTheme.textSecondaryColor,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
+            unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal, letterSpacing: 0.25),
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
             tabs: const [
               Tab(text: 'ANIME'),
               Tab(text: 'KOMIK'),
@@ -642,9 +870,9 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
 
-        // Tab content
+        // Enhanced tab content with better spacing
         Container(
-          height: 320,
+          height: 340,
           padding: const EdgeInsets.only(top: 8),
           child: TabBarView(
             controller: _tabController,
@@ -717,56 +945,162 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildContentGridItem(dynamic item, String type) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => type == 'anime'
-                ? AnimeDetailsScreen(url: item['url'])
-                : ComicDetailsScreen(url: item['url']),
+    return StatefulBuilder(
+      builder: (context, setState) {
+        bool _isHovered = false;
+        return AnimatedContainer(
+          duration: Duration(milliseconds: 200),
+          transform: Matrix4.identity()
+            ..scale(_isHovered ? 1.03 : 1.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => type == 'anime'
+                        ? AnimeDetailsScreen(url: item['url'])
+                        : ComicDetailsScreen(url: item['url']),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+              splashColor: AppTheme.primaryColor.withOpacity(0.1),
+              highlightColor: AppTheme.primaryColor.withOpacity(0.05),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => setState(() => _isHovered = true),
+                onExit: (_) => setState(() => _isHovered = false),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: AnimatedContainer(
+                        duration: Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          boxShadow: _isHovered
+                            ? AppTheme.mediumShadow
+                            : AppTheme.subtleShadow,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.network(
+                                item['image_url'],
+                                fit: BoxFit.cover,
+                                errorBuilder: (ctx, error, stackTrace) => Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        AppTheme.surfaceColor,
+                                        AppTheme.cardColor,
+                                      ],
+                                    ),
+                                  ),
+                                  child: const Icon(Icons.broken_image, color: AppTheme.textSecondaryColor),
+                                ),
+                                loadingBuilder: (ctx, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          AppTheme.surfaceColor,
+                                          AppTheme.cardColor,
+                                        ],
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        value: loadingProgress.expectedTotalBytes != null
+                                            ? loadingProgress.cumulativeBytesLoaded /
+                                                loadingProgress.expectedTotalBytes!
+                                            : null,
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          AppTheme.primaryColor,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              // Gradient overlay for better text readability
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(_isHovered ? 0.7 : 0.6),
+                                      ],
+                                      stops: [0.0, 0.5, 1.0],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Play button overlay on hover
+                              if (_isHovered)
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: RadialGradient(
+                                        center: Alignment.center,
+                                        radius: 0.8,
+                                        colors: [
+                                          Colors.black.withOpacity(0.3),
+                                          Colors.transparent,
+                                        ],
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      Icons.play_circle_filled,
+                                      color: Colors.white.withOpacity(0.9),
+                                      size: 40,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Enhanced text container with better typography
+                    Container(
+                      height: 40,
+                      child: Text(
+                        item['title'] ?? 'Unknown Title',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: _isHovered
+                            ? AppTheme.primaryColor.withOpacity(0.9)
+                            : Colors.white,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         );
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.network(
-                    item['image_url'],
-                    fit: BoxFit.cover,
-                    errorBuilder: (ctx, error, stackTrace) => Container(
-                      color: Colors.grey[800],
-                      child: const Icon(Icons.broken_image, color: Colors.grey),
-                    ),
-                  ),
-                  // Rating removed as requested
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          // Added container with fixed height to ensure text is visible
-          Container(
-            height: 36,
-            child: Text(
-              item['title'] ?? 'Unknown Title',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
+
