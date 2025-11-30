@@ -13,6 +13,7 @@ import urllib.parse
 from threading import Thread
 import uuid
 from datetime import datetime, timedelta
+import os
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -20,6 +21,42 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# App version data storage
+APP_VERSION_FILE = 'app_version.json'
+
+def load_app_version():
+    """Load app version data from file"""
+    default_version = {
+        "version": "1.0.0",
+        "download_url": "https://github.com/Sedetil/AniWanTV-Mobile/releases/download/v1.0.0/app-arm64-v8a-release.apk",
+        "changelog": "Initial release"
+    }
+    
+    try:
+        if os.path.exists(APP_VERSION_FILE):
+            with open(APP_VERSION_FILE, 'r') as f:
+                return json.load(f)
+        else:
+            # Create default file if it doesn't exist
+            save_app_version(default_version)
+            return default_version
+    except Exception as e:
+        logger.error(f"Error loading app version: {e}")
+        return default_version
+
+def save_app_version(version_data):
+    """Save app version data to file"""
+    try:
+        with open(APP_VERSION_FILE, 'w') as f:
+            json.dump(version_data, f, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving app version: {e}")
+        return False
+
+# Initialize app version data
+app_version_data = load_app_version()
 
 def keep_alive():
     """Run Flask app in a separate thread for keep-alive"""
@@ -2056,6 +2093,71 @@ def genre_content():
         return jsonify({
             "success": False,
             "error": str(e)
+        }), 500
+
+@app.route('/api/app_version', methods=['GET'])
+def get_app_version():
+    """Get the latest app version information"""
+    try:
+        global app_version_data
+        # Reload the latest version data
+        app_version_data = load_app_version()
+        return jsonify(app_version_data)
+    except Exception as e:
+        logger.error(f"Error in app_version endpoint: {e}")
+        return jsonify({
+            "error": "Failed to get app version",
+            "message": str(e)
+        }), 500
+
+@app.route('/api/update', methods=['POST'])
+def update_app_version():
+    """Update app version information"""
+    try:
+        global app_version_data
+        
+        # Check if request is JSON
+        if not request.is_json:
+            return jsonify({
+                "error": "Invalid request format",
+                "message": "Request must be JSON"
+            }), 400
+        
+        data = request.get_json()
+        
+        # Validate required fields
+        if not all(key in data for key in ['version', 'download_url', 'changelog']):
+            return jsonify({
+                "error": "Missing required fields",
+                "message": "version, download_url, and changelog are required"
+            }), 400
+        
+        # Update version data
+        app_version_data = {
+            "version": data['version'],
+            "download_url": data['download_url'],
+            "changelog": data['changelog']
+        }
+        
+        # Save to file
+        if save_app_version(app_version_data):
+            logger.info(f"App version updated to {data['version']}")
+            return jsonify({
+                "success": True,
+                "message": "App version updated successfully",
+                "data": app_version_data
+            })
+        else:
+            return jsonify({
+                "error": "Failed to save version data",
+                "message": "Could not write to version file"
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error in update endpoint: {e}")
+        return jsonify({
+            "error": "Failed to update app version",
+            "message": str(e)
         }), 500
 
 @app.route('/extract', methods=['GET', 'POST'])

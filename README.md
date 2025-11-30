@@ -57,7 +57,8 @@ lib/
 │   ├── splash_screen.dart    # Splash screen
 │   ├── home_screen.dart      # Beranda utama
 │   ├── search_screen.dart    # Pencarian
-│   ├── explore_screen.dart   # Eksplorasi konten dengan genre filter
+│   ├── explore_screen.dart   # Eksplorasi konten dengan genre
+filter
 │   ├── anime_details_screen.dart  # Detail anime
 │   ├── episode_streams_screen.dart # Daftar episode
 │   ├── video_player_screen.dart   # Video player
@@ -67,6 +68,7 @@ lib/
 │   ├── history_screen.dart        # Riwayat tontonan
 │   ├── profile_screen.dart        # Profil user
 │   ├── login_screen.dart          # Login
+│   ├── categories_screen.dart     # Kategori
 │   └── register_screen.dart       # Registrasi
 ├── widgets/                  # Custom widgets
 │   ├── custom_bottom_nav_bar.dart # Bottom navigation

@@ -2,14 +2,16 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl =
-      'https://web-production-0b9b9.up.railway.app';
-  
+  static String _baseUrl = 'http://172.236.143.121:5000';
+  static const String _prefsKeyApiBaseUrl = 'api_base_url';
+  static bool _baseUrlLoaded = false;
+
   // Timeout duration for API requests
   static const Duration _timeout = Duration(seconds: 30);
-  
+
   // Cache for API responses
   static final Map<String, dynamic> _cache = {};
   static const Duration _cacheExpiry = Duration(minutes: 5);
@@ -21,35 +23,37 @@ class ApiService {
     Map<String, String>? queryParameters,
     bool useCache = true,
   }) async {
+    await _ensureBaseUrlLoaded();
     final cacheKey = '$endpoint${queryParameters?.toString() ?? ''}';
-    
+
     // Check cache first
     if (useCache && _cache.containsKey(cacheKey)) {
       final timestamp = _cacheTimestamps[cacheKey];
-      if (timestamp != null && DateTime.now().difference(timestamp) < _cacheExpiry) {
+      if (timestamp != null &&
+          DateTime.now().difference(timestamp) < _cacheExpiry) {
         print('Using cached response for $endpoint');
         return _cache[cacheKey];
       }
     }
-    
+
     try {
-      final uri = Uri.parse('$baseUrl$endpoint').replace(
+      final uri = Uri.parse('$_baseUrl$endpoint').replace(
         queryParameters: queryParameters,
       );
-      
+
       print('Making request to: $uri');
-      
+
       final response = await http.get(uri).timeout(_timeout);
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         // Cache response
         if (useCache) {
           _cache[cacheKey] = data;
           _cacheTimestamps[cacheKey] = DateTime.now();
         }
-        
+
         return data;
       } else {
         throw ApiException(
@@ -78,6 +82,30 @@ class ApiService {
         originalError: e is Exception ? e : Exception(e.toString()),
       );
     }
+  }
+
+  static Future<void> _ensureBaseUrlLoaded() async {
+    if (_baseUrlLoaded) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_prefsKeyApiBaseUrl);
+      if (saved != null && saved.isNotEmpty) {
+        _baseUrl = saved;
+      }
+    } catch (_) {}
+    _baseUrlLoaded = true;
+  }
+
+  static Future<void> setBaseUrl(String url) async {
+    _baseUrl = url;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKeyApiBaseUrl, url);
+    } catch (_) {}
+  }
+
+  static String getBaseUrl() {
+    return _baseUrl;
   }
 
   // Clear cache
@@ -144,7 +172,7 @@ class ApiService {
   static Future<dynamic> fetchEpisodeStreams(String url) async {
     try {
       final response = await _makeRequest(
-        '/episode-streams-fast',
+        '/episode-streams',
         queryParameters: {'url': url},
       );
       if (response['data'] != null) {
@@ -153,6 +181,22 @@ class ApiService {
         throw ApiException('Invalid response format: missing data field');
       }
     } catch (e) {
+      if (e is ApiException && e.statusCode == 404) {
+        try {
+          final fallback = await _makeRequest(
+            '/episode-streams-fast',
+            queryParameters: {'url': url},
+          );
+          if (fallback['data'] != null) {
+            return fallback['data'];
+          } else {
+            throw ApiException('Invalid response format: missing data field');
+          }
+        } catch (fallbackError) {
+          throw ApiException(
+              'Failed to load episode streams (fallback): ${fallbackError.toString()}');
+        }
+      }
       throw ApiException('Failed to load episode streams: ${e.toString()}');
     }
   }
@@ -177,8 +221,9 @@ class ApiService {
   // Cache management methods
   static Future<bool> clearStreamCache() async {
     try {
+      await _ensureBaseUrlLoaded();
       final response =
-          await http.post(Uri.parse('$baseUrl/clear-stream-cache'));
+          await http.post(Uri.parse('$_baseUrl/clear-stream-cache'));
       return response.statusCode == 200;
     } catch (e) {
       return false;
@@ -187,7 +232,8 @@ class ApiService {
 
   static Future<dynamic> getCacheInfo() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/cache-info'));
+      await _ensureBaseUrlLoaded();
+      final response = await http.get(Uri.parse('$_baseUrl/cache-info'));
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -199,8 +245,9 @@ class ApiService {
 
   static Future<dynamic> getOptimizationStatus() async {
     try {
+      await _ensureBaseUrlLoaded();
       final response =
-          await http.get(Uri.parse('$baseUrl/optimization-status'));
+          await http.get(Uri.parse('$_baseUrl/optimization-status'));
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -307,7 +354,8 @@ class ApiService {
     }
   }
 
-  static Future<dynamic> fetchGenreContent(String genreUrl, {int page = 1}) async {
+  static Future<dynamic> fetchGenreContent(String genreUrl,
+      {int page = 1}) async {
     try {
       final response = await _makeRequest(
         '/genre-content',
@@ -329,9 +377,9 @@ class ApiException implements Exception {
   final String message;
   final int? statusCode;
   final Exception? originalError;
-  
+
   ApiException(this.message, {this.statusCode, this.originalError});
-  
+
   @override
   String toString() => message;
 }

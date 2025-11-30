@@ -388,7 +388,8 @@ class _GoBackButton extends StatelessWidget {
                     ? AppTheme.primaryColor.withOpacity(0.9)
                     : AppTheme.primaryColor,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                 ),
@@ -419,7 +420,8 @@ class _AnimeSliverAppBar extends StatelessWidget {
       backgroundColor: AppTheme.backgroundColor,
       actions: [_ShareButton(), _FavoriteButton(anime: anime, url: url)],
       flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.only(left: 60.0, bottom: 16.0, right: 120.0),
+        titlePadding:
+            const EdgeInsets.only(left: 60.0, bottom: 16.0, right: 120.0),
         title: _AnimatedAppBarTitle(title: anime['title']),
         background: Stack(
           fit: StackFit.expand,
@@ -505,6 +507,9 @@ class _FavoriteButton extends StatelessWidget {
     return StatefulBuilder(
       builder: (context, setState) {
         bool isHovered = false;
+        final appStateProvider = Provider.of<AppStateProvider>(context);
+        final isFavorited =
+            appStateProvider.favoriteAnime.any((item) => item['url'] == url);
         return MouseRegion(
           cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => isHovered = true),
@@ -513,26 +518,32 @@ class _FavoriteButton extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             transform: Matrix4.identity()..scale(isHovered ? 1.1 : 1.0),
             child: IconButton(
-              icon: const Icon(Icons.favorite_border),
+              icon: Icon(isFavorited ? Icons.favorite : Icons.favorite_border,
+                  color: isFavorited ? Colors.red : null),
               onPressed: () async {
                 try {
-                  final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+                  final appStateProvider =
+                      Provider.of<AppStateProvider>(context, listen: false);
                   await appStateProvider.initialize();
-                  
-                  // Check if anime already exists in favorites
-                  final animeExists = appStateProvider.favoriteAnime.any((item) => item['url'] == url);
-                  if (animeExists) {
-                    Fluttertoast.showToast(
-                      msg: 'Anime sudah ada di favorites',
-                      toastLength: Toast.LENGTH_SHORT,
-                      gravity: ToastGravity.BOTTOM,
-                      backgroundColor: Colors.orange,
-                      textColor: Colors.white,
-                    );
-                    return;
+                  final existing = appStateProvider.favoriteAnime
+                      .where((item) => item['url'] == url)
+                      .toList();
+                  if (existing.isNotEmpty) {
+                    final id = existing.first['id']?.toString() ?? '';
+                    if (id.isNotEmpty) {
+                      await appStateProvider.removeFromFavorites(id, true);
+                      Fluttertoast.showToast(
+                        msg: 'Removed from favorites',
+                        toastLength: Toast.LENGTH_SHORT,
+                        gravity: ToastGravity.BOTTOM,
+                        backgroundColor: Colors.red,
+                        textColor: Colors.white,
+                      );
+                      setState(() {});
+                      return;
+                    }
                   }
-                  
-                  // Add to favorites using AppStateProvider
+
                   await appStateProvider.addToFavorites({
                     'title': anime['title'] ?? 'No Title',
                     'image_url': anime['image_url'] ?? '',
@@ -542,7 +553,7 @@ class _FavoriteButton extends StatelessWidget {
                         : 'No description available',
                     'rating': anime['rating'],
                   }, true);
-                  
+
                   Fluttertoast.showToast(
                     msg: 'Added to favorites',
                     toastLength: Toast.LENGTH_SHORT,
@@ -550,6 +561,7 @@ class _FavoriteButton extends StatelessWidget {
                     backgroundColor: Colors.green,
                     textColor: Colors.white,
                   );
+                  setState(() {});
                 } catch (e) {
                   Fluttertoast.showToast(
                     msg: 'Error adding to favorites: $e',
@@ -642,16 +654,72 @@ class _AnimatedInfoCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _InfoRow(
-                          label: 'Rating',
-                          infoValue: anime['rating']?.toString() ?? 'N/A',
-                          icon: Icons.star,
-                          iconColor: Colors.amber,
-                        ),
-                      ],
+                    Builder(
+                      builder: (context) {
+                        final releaseDate =
+                            anime['release_date']?.toString() ?? '';
+                        final ratingRaw = anime['rating']?.toString() ?? '';
+                        final ratingTrim = ratingRaw.trim();
+                        final ratingText = (ratingTrim.isNotEmpty &&
+                                RegExp(r'^\d+(\.\d+)?(\/\d+)?$')
+                                    .hasMatch(ratingTrim))
+                            ? ratingTrim
+                            : 'Belum Ada';
+                        final releaseDateText =
+                            releaseDate.trim().isNotEmpty ? releaseDate : 'N/A';
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _InfoPill(
+                              icon: Icons.star,
+                              text: ratingText,
+                              iconColor: Colors.amber,
+                            ),
+                            _InfoPill(
+                              icon: Icons.calendar_today,
+                              text: releaseDateText,
+                            ),
+                            if (anime['type'] != null)
+                              _InfoPill(
+                                icon: Icons.tv,
+                                text: anime['type'].toString(),
+                              ),
+                            if (anime['japanese'] != null &&
+                                anime['japanese'].toString().isNotEmpty)
+                              _InfoPill(
+                                icon: Icons.translate,
+                                text: 'Japan',
+                              ),
+                            if (anime['status'] != null)
+                              _InfoPill(
+                                icon: Icons.info_outline,
+                                text: anime['status'].toString(),
+                              ),
+                            if (anime['total_episodes'] != null)
+                              _InfoPill(
+                                icon: Icons.format_list_numbered,
+                                text: anime['total_episodes'].toString(),
+                              ),
+                            if (anime['duration'] != null)
+                              _InfoPill(
+                                icon: Icons.timer,
+                                text: anime['duration'].toString(),
+                              ),
+                            if (anime['studio'] != null)
+                              _InfoPill(
+                                icon: Icons.apartment,
+                                text: anime['studio'].toString(),
+                              ),
+                            if (anime['producer'] != null &&
+                                anime['producer'].toString().isNotEmpty)
+                              _InfoPill(
+                                icon: Icons.group,
+                                text: anime['producer'].toString(),
+                              ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 20),
                     _GenresChips(genres: anime['genres'] ?? []),
@@ -741,11 +809,12 @@ class _InfoRow extends StatelessWidget {
                       Flexible(
                         child: Text(
                           label,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.5,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 0.5,
+                                  ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
@@ -803,7 +872,8 @@ class _GenresChips extends StatelessWidget {
                             AppTheme.primaryColor.withOpacity(0.1),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSmall),
                         border: Border.all(
                           color: AppTheme.primaryColor.withOpacity(0.3),
                           width: 1.5,
@@ -833,7 +903,8 @@ class _GenresChips extends StatelessWidget {
                   children: genres.asMap().entries.map((entry) {
                     int index = entry.key;
                     String genre = entry.value.toString();
-                    Color genreColor = Colors.primaries[index % Colors.primaries.length];
+                    Color genreColor =
+                        Colors.primaries[index % Colors.primaries.length];
                     return _GenreChip(genre: genre, color: genreColor);
                   }).toList(),
                 ),
@@ -876,7 +947,9 @@ class _GenreChip extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
                 border: Border.all(
-                  color: isHovered ? color.withOpacity(0.6) : color.withOpacity(0.3),
+                  color: isHovered
+                      ? color.withOpacity(0.6)
+                      : color.withOpacity(0.3),
                   width: isHovered ? 2 : 1.5,
                 ),
                 boxShadow: isHovered
@@ -1018,9 +1091,11 @@ class _AnimatedEpisodesHeader extends StatelessWidget {
                       onExit: (_) => setState(() => isHovered = false),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        transform: Matrix4.identity()..scale(isHovered ? 1.05 : 1.0),
+                        transform: Matrix4.identity()
+                          ..scale(isHovered ? 1.05 : 1.0),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: isHovered
                                 ? AppTheme.primaryColor.withOpacity(0.9)
@@ -1029,7 +1104,8 @@ class _AnimatedEpisodesHeader extends StatelessWidget {
                             boxShadow: isHovered
                                 ? [
                                     BoxShadow(
-                                      color: AppTheme.primaryColor.withOpacity(0.5),
+                                      color: AppTheme.primaryColor
+                                          .withOpacity(0.5),
                                       blurRadius: 20,
                                       spreadRadius: 0,
                                       offset: const Offset(0, 8),
@@ -1043,7 +1119,8 @@ class _AnimatedEpisodesHeader extends StatelessWidget {
                                   ]
                                 : [
                                     BoxShadow(
-                                      color: AppTheme.primaryColor.withOpacity(0.3),
+                                      color: AppTheme.primaryColor
+                                          .withOpacity(0.3),
                                       blurRadius: 16,
                                       spreadRadius: 0,
                                       offset: const Offset(0, 6),
@@ -1174,7 +1251,8 @@ class _EpisodeTile extends StatelessWidget {
                 splashColor: AppTheme.primaryColor.withOpacity(0.1),
                 highlightColor: AppTheme.primaryColor.withOpacity(0.05),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
                     children: [
                       Container(
@@ -1192,11 +1270,13 @@ class _EpisodeTile extends StatelessWidget {
                                   ],
                                 )
                               : AppTheme.primaryGradient,
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusMedium),
                           boxShadow: isHovered
                               ? [
                                   BoxShadow(
-                                    color: AppTheme.primaryColor.withOpacity(0.5),
+                                    color:
+                                        AppTheme.primaryColor.withOpacity(0.5),
                                     blurRadius: 20,
                                     spreadRadius: 0,
                                     offset: const Offset(0, 8),
@@ -1210,7 +1290,8 @@ class _EpisodeTile extends StatelessWidget {
                                 ]
                               : [
                                   BoxShadow(
-                                    color: AppTheme.primaryColor.withOpacity(0.3),
+                                    color:
+                                        AppTheme.primaryColor.withOpacity(0.3),
                                     blurRadius: 16,
                                     spreadRadius: 0,
                                     offset: const Offset(0, 6),
@@ -1239,7 +1320,10 @@ class _EpisodeTile extends StatelessWidget {
                           children: [
                             Text(
                               episode['title'] ?? 'Episode ${index + 1}',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: isHovered
                                         ? AppTheme.primaryColor.withOpacity(0.9)
@@ -1262,7 +1346,8 @@ class _EpisodeTile extends StatelessWidget {
                               AppTheme.primaryColor.withOpacity(0.1),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusSmall),
                           border: Border.all(
                             color: AppTheme.primaryColor.withOpacity(0.3),
                             width: 1.5,
@@ -1284,6 +1369,49 @@ class _EpisodeTile extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color? iconColor;
+  const _InfoPill({required this.icon, required this.text, this.iconColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 160),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppTheme.primaryColor.withOpacity(0.3),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: iconColor ?? AppTheme.primaryColor),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

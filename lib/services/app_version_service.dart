@@ -7,17 +7,43 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppVersionService {
-  // Ganti dengan URL API Anda
-  static const String baseUrl =
-      'https://web-production-0b9b9.up.railway.app/api/app_version';
+  static String _baseUrl = 'http://159.223.42.28:5000/api/app_version';
+  static const String _prefsKeyAppVersionUrl = 'app_version_url';
+  static bool _baseUrlLoaded = false;
+
+  static Future<void> _ensureBaseUrlLoaded() async {
+    if (_baseUrlLoaded) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_prefsKeyAppVersionUrl);
+      if (saved != null && saved.isNotEmpty) {
+        _baseUrl = saved;
+      }
+    } catch (_) {}
+    _baseUrlLoaded = true;
+  }
+
+  static Future<void> setBaseUrl(String url) async {
+    _baseUrl = url;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKeyAppVersionUrl, url);
+    } catch (_) {}
+  }
+
+  static String getBaseUrl() {
+    return _baseUrl;
+  }
 
   // Mendapatkan informasi versi terbaru dari server
   static Future<Map<String, dynamic>?> getAppVersion() async {
     try {
+      await _ensureBaseUrlLoaded();
       final response = await http.get(
-        Uri.parse(baseUrl),
+        Uri.parse(_baseUrl),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

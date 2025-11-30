@@ -29,7 +29,7 @@ class CustomErrorDialog extends StatefulWidget {
         title: title,
         message: message,
         onRetry: onRetry,
-        onDismiss: onDismiss ?? () => Navigator.of(context).pop(),
+        onDismiss: onDismiss,
       ),
     );
   }

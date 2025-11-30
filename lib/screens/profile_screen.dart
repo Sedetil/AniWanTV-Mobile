@@ -8,6 +8,9 @@ import 'history_screen.dart';
 import 'favorites_screen.dart';
 import 'login_screen.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import '../services/api_service.dart';
+import '../services/app_version_service.dart';
+import 'splash_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -19,6 +22,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String email = '';
   bool isDarkMode = false;
   bool isLoading = true;
+  String _apiBaseUrl = '';
+  String _appVersionUrl = '';
 
   @override
   void initState() {
@@ -28,14 +33,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       Provider.of<AppStateProvider>(context, listen: false).initialize();
     });
     _loadUserData();
+    _loadApiConfig();
   }
 
   Future<void> _loadUserData() async {
     setState(() => isLoading = true);
     try {
-      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      final appStateProvider =
+          Provider.of<AppStateProvider>(context, listen: false);
       await appStateProvider.initialize();
-      
+
       setState(() {
         username = appStateProvider.username;
         email = appStateProvider.email;
@@ -46,6 +53,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => isLoading = false);
       _showErrorDialog('Error Loading Profile', 'Failed to load user data: $e');
     }
+  }
+
+  Future<void> _loadApiConfig() async {
+    setState(() {
+      _apiBaseUrl = ApiService.getBaseUrl();
+      _appVersionUrl = AppVersionService.getBaseUrl();
+    });
   }
 
   void _showErrorDialog(String title, String message) {
@@ -59,7 +73,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _saveUserData() async {
     try {
-      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      final appStateProvider =
+          Provider.of<AppStateProvider>(context, listen: false);
       await appStateProvider.updateUserData(
         username: username,
         email: email,
@@ -81,7 +96,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _logout() async {
     try {
       // Use AppStateProvider to handle logout
-      final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+      final appStateProvider =
+          Provider.of<AppStateProvider>(context, listen: false);
       await appStateProvider.logout();
 
       Fluttertoast.showToast(
@@ -415,7 +431,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onChanged: (value) {
                   setState(() => isDarkMode = value);
                   // Update the theme in AppStateProvider
-                  Provider.of<AppStateProvider>(context, listen: false).updateUserData(isDarkMode: value);
+                  Provider.of<AppStateProvider>(context, listen: false)
+                      .updateUserData(isDarkMode: value);
                   _saveUserData();
                 },
                 secondary: Container(
@@ -446,6 +463,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   backgroundColor: AppTheme.accentColor,
                   textColor: Colors.white,
                 );
+              },
+            ),
+            SizedBox(height: 8),
+            _buildSettingsTile(
+              icon: Icons.link,
+              title: 'API Endpoint',
+              subtitle:
+                  _apiBaseUrl.isNotEmpty ? _apiBaseUrl : 'Set API base URL',
+              onTap: () {
+                _showEditApiDialog();
               },
             ),
             SizedBox(height: 8),
@@ -727,6 +754,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               'Logout',
               style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditApiDialog() {
+    final apiController = TextEditingController(text: _apiBaseUrl);
+    final appVersionController = TextEditingController(text: _appVersionUrl);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardColor,
+        title: Text(
+          'Edit API URLs',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: apiController,
+              decoration: InputDecoration(
+                labelText: 'API Base URL',
+                labelStyle: TextStyle(color: AppTheme.textSecondaryColor),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppTheme.textSecondaryColor),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppTheme.primaryColor),
+                ),
+              ),
+              style: TextStyle(color: Colors.white),
+            ),
+            SizedBox(height: 12),
+            TextField(
+              controller: appVersionController,
+              decoration: InputDecoration(
+                labelText: 'App Version URL',
+                labelStyle: TextStyle(color: AppTheme.textSecondaryColor),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppTheme.textSecondaryColor),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppTheme.primaryColor),
+                ),
+              ),
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppTheme.textSecondaryColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final apiUrl = apiController.text.trim();
+              final verUrl = appVersionController.text.trim();
+              if (apiUrl.isNotEmpty) {
+                await ApiService.setBaseUrl(apiUrl);
+              }
+              if (verUrl.isNotEmpty) {
+                await AppVersionService.setBaseUrl(verUrl);
+              }
+              setState(() {
+                _apiBaseUrl = ApiService.getBaseUrl();
+                _appVersionUrl = AppVersionService.getBaseUrl();
+              });
+              ApiService.clearCache();
+              Navigator.pop(context);
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => SplashScreen()),
+                (route) => false,
+              );
+            },
+            child: Text(
+              'Save',
+              style: TextStyle(color: AppTheme.primaryColor),
             ),
           ),
         ],

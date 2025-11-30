@@ -15,7 +15,8 @@
     <application
         android:label="AniWanTV"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon"
+        android:usesCleartextTraffic="true">
         
         <!-- Tambahkan meta-data untuk AdMob App ID di sini -->
         <meta-data

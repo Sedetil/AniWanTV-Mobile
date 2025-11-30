@@ -1,3 +1,4 @@
+import 'package:aniwantv/screens/categories_screen.dart';
 import 'package:aniwantv/screens/explore_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -12,6 +13,8 @@ import '../widgets/custom_error_dialog.dart';
 import '../widgets/custom_loading_widget.dart';
 import '../widgets/update_dialog.dart';
 import '../providers/app_state_provider.dart';
+import '../services/ad_service.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'anime_details_screen.dart';
 import 'comic_details_screen.dart';
 import 'search_screen.dart';
@@ -63,6 +66,10 @@ class _HomeScreenState extends State<HomeScreen>
     // Check for app updates
     _checkForAppUpdate();
 
+    AdService.loadBottomNavBanner(onLoaded: () {
+      if (mounted) setState(() {});
+    });
+
     // Use preloaded content if available
     if (widget.preloadedAnime != null &&
         widget.preloadedComics != null &&
@@ -107,6 +114,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    AdService.dispose();
     super.dispose();
   }
 
@@ -229,9 +237,26 @@ class _HomeScreenState extends State<HomeScreen>
             ],
           ),
         ),
-        bottomNavigationBar: CustomBottomNavBar(
-          currentIndex: _currentNavIndex,
-          onTap: _handleNavigation,
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CustomBottomNavBar(
+              currentIndex: _currentNavIndex,
+              onTap: _handleNavigation,
+            ),
+            if (AdService.bottomNavBanner != null)
+              SafeArea(
+                top: false,
+                child: Align(
+                  alignment: Alignment.center,
+                  child: SizedBox(
+                    width: AdService.bottomNavBanner!.size.width.toDouble(),
+                    height: AdService.bottomNavBanner!.size.height.toDouble(),
+                    child: AdWidget(ad: AdService.bottomNavBanner!),
+                  ),
+                ),
+              ),
+          ],
         ),
         floatingActionButton: StatefulBuilder(
           builder: (context, setState) {
@@ -741,13 +766,9 @@ class _HomeScreenState extends State<HomeScreen>
                 icon: Icons.category_outlined,
                 label: 'Categories',
                 onTap: () {
-                  // Add categories screen navigation here
-                  Fluttertoast.showToast(
-                    msg: 'Categories coming soon',
-                    toastLength: Toast.LENGTH_SHORT,
-                    gravity: ToastGravity.BOTTOM,
-                    backgroundColor: AppTheme.primaryColor,
-                    textColor: Colors.white,
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => CategoriesScreen()),
                   );
                 },
               ),

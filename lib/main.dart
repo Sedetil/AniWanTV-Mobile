@@ -9,6 +9,7 @@ import 'providers/app_state_provider.dart';
 import 'services/ad_service.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:flutter/services.dart';
 
 void main() async {
   // Initialize WebView platform
@@ -17,6 +18,15 @@ void main() async {
 
   // Initialize Flutter binding
   WidgetsFlutterBinding.ensureInitialized();
+
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.light,
+    systemNavigationBarDividerColor: Colors.transparent,
+  ));
 
   // Initialize AdMob SDK
   await MobileAds.instance.initialize();
@@ -65,7 +75,8 @@ class MyApp extends StatelessWidget {
           title: 'AniWanTV',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
-          themeMode: appStateProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          themeMode:
+              appStateProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: SplashScreen(),
           debugShowCheckedModeBanner: false,
         );

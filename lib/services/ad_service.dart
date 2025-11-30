@@ -9,6 +9,8 @@ class AdService {
   static const int _maxAdLoadAttempts = 3;
   static const String _rewardedAdUnitId = 'ca-app-pub-7591838535085655/4184612382';
   static const String _interstitialAdUnitId = 'ca-app-pub-7591838535085655/2876470342';
+  static const String _bannerBottomNav = 'ca-app-pub-7591838535085655/8350682205';
+  static BannerAd? _bottomNavBanner;
 
   static Future<void> loadRewardedAd({bool forceReload = false}) async {
     if (_isAdLoading && !forceReload) return;
@@ -181,5 +183,28 @@ class AdService {
     _rewardedAd = null;
     _interstitialAd?.dispose();
     _interstitialAd = null;
+    _bottomNavBanner?.dispose();
+    _bottomNavBanner = null;
   }
+
+  static Future<void> loadBottomNavBanner({VoidCallback? onLoaded}) async {
+    _bottomNavBanner?.dispose();
+    _bottomNavBanner = BannerAd(
+      adUnitId: _bannerBottomNav,
+      request: AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (Ad ad) {
+          onLoaded?.call();
+        },
+        onAdFailedToLoad: (Ad ad, LoadAdError error) {
+          ad.dispose();
+          _bottomNavBanner = null;
+        },
+      ),
+    );
+    await _bottomNavBanner!.load();
+  }
+
+  static BannerAd? get bottomNavBanner => _bottomNavBanner;
 }

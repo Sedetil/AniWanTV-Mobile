@@ -17,7 +17,6 @@ class _ExploreScreenState extends State<ExploreScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   List<dynamic> genres = [];
-  List<dynamic> topAnime = [];
   List<dynamic> latestAnime = [];
   List<dynamic> latestComics = [];
   bool isLoadingGenres = true;
@@ -47,33 +46,59 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Future<void> _loadData() async {
     try {
-      // Load genres
-      final genresData = await ApiService.fetchGenres();
-      
       // Load content
-      final topAnimeData = await ApiService.fetchTopAnime();
-      final latestAnimeData = await ApiService.fetchLatestAnime();
-      final latestComicsData = await ApiService.fetchLatestComics();
+      final latestAnimeData = await _fetchAllLatestAnime();
+      final latestComicsData = await _fetchAllLatestComics();
 
       if (mounted) {
         setState(() {
-          genres = genresData;
-          topAnime = topAnimeData;
           latestAnime = latestAnimeData;
           latestComics = latestComicsData;
-          isLoadingGenres = false;
           isLoadingContent = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          isLoadingGenres = false;
           isLoadingContent = false;
         });
         _showErrorDialog('Error Loading Content', 'Failed to load content: $e');
       }
     }
+  }
+
+  Future<List<dynamic>> _fetchAllLatestAnime() async {
+    List<dynamic> all = [];
+    Set<String> seen = {};
+    for (int page = 1; page <= 5; page++) {
+      final items = await ApiService.fetchLatestAnime(page: page);
+      if (items.isEmpty) break;
+      for (final item in items) {
+        final key = item['url'] ?? item['title'] ?? 'unknown_${all.length}';
+        if (!seen.contains(key)) {
+          seen.add(key);
+          all.add(item);
+        }
+      }
+    }
+    return all;
+  }
+
+  Future<List<dynamic>> _fetchAllLatestComics() async {
+    List<dynamic> all = [];
+    Set<String> seen = {};
+    for (int page = 1; page <= 5; page++) {
+      final items = await ApiService.fetchLatestComics(page: page);
+      if (items.isEmpty) break;
+      for (final item in items) {
+        final key = item['url'] ?? item['title'] ?? 'unknown_${all.length}';
+        if (!seen.contains(key)) {
+          seen.add(key);
+          all.add(item);
+        }
+      }
+    }
+    return all;
   }
 
   void _showErrorDialog(String title, String message) {
@@ -157,7 +182,6 @@ class _ExploreScreenState extends State<ExploreScreen>
       ),
       body: Column(
         children: [
-          _buildGenreSelector(),
           _buildContentTabs(),
         ],
       ),
@@ -282,7 +306,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                 dividerColor: Colors.transparent,
                 tabs: const [
                   Tab(text: 'ANIME'),
-                  Tab(text: 'MANGA'),
+                  Tab(text: 'KOMIK'),
                 ],
               ),
             ),
@@ -314,23 +338,6 @@ class _ExploreScreenState extends State<ExploreScreen>
 
     return Column(
       children: [
-        // Top Anime Section
-        if (topAnime.isNotEmpty && selectedGenre == 'All') ...[
-          _buildSectionHeader('Top Anime'),
-          Container(
-            height: 200,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              itemCount: topAnime.take(10).length,
-              itemBuilder: (context, index) {
-                final anime = topAnime[index];
-                return _buildHorizontalAnimeCard(anime);
-              },
-            ),
-          ),
-          SizedBox(height: 16),
-        ],
         
         // Latest Anime Section
         _buildSectionHeader('Latest Anime'),
@@ -366,7 +373,7 @@ class _ExploreScreenState extends State<ExploreScreen>
     return Column(
       children: [
         // Latest Manga Section
-        _buildSectionHeader('Latest Manga'),
+        _buildSectionHeader('Latest Komik'),
         Expanded(
           child: GridView.builder(
             padding: EdgeInsets.all(16),
@@ -430,140 +437,6 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
-  Widget _buildHorizontalAnimeCard(dynamic anime) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool _isHovered = false;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _isHovered = true),
-          onExit: (_) => setState(() => _isHovered = false),
-          child: AnimatedContainer(
-            duration: Duration(milliseconds: 200),
-            width: 120,
-            margin: EdgeInsets.only(right: 12),
-            transform: Matrix4.identity()
-              ..scale(_isHovered ? 1.05 : 1.0),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AnimeDetailsScreen(url: anime['url']),
-                    ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                splashColor: AppTheme.primaryColor.withOpacity(0.1),
-                highlightColor: AppTheme.primaryColor.withOpacity(0.05),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                          boxShadow: _isHovered
-                            ? AppTheme.mediumShadow
-                            : AppTheme.subtleShadow,
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Image.network(
-                                anime['image_url'] ?? '',
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          AppTheme.surfaceColor,
-                                          AppTheme.cardColor,
-                                        ],
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Icon(Icons.broken_image, color: AppTheme.textSecondaryColor),
-                                    ),
-                                  );
-                                },
-                              ),
-                              // Gradient overlay for better text readability
-                              Positioned.fill(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.transparent,
-                                        Colors.transparent,
-                                        Colors.black.withOpacity(_isHovered ? 0.7 : 0.6),
-                                      ],
-                                      stops: [0.0, 0.5, 1.0],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // Play button overlay on hover
-                              if (_isHovered)
-                                Positioned.fill(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      gradient: RadialGradient(
-                                        center: Alignment.center,
-                                        radius: 0.8,
-                                        colors: [
-                                          Colors.black.withOpacity(0.3),
-                                          Colors.transparent,
-                                        ],
-                                      ),
-                                    ),
-                                    child: Icon(
-                                      Icons.play_circle_filled,
-                                      color: Colors.white.withOpacity(0.9),
-                                      size: 30,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Container(
-                      height: 40,
-                      child: Text(
-                        anime['title'] ?? 'Unknown Title',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: _isHovered
-                            ? AppTheme.primaryColor.withOpacity(0.9)
-                            : Colors.white,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildAnimeGridCard(dynamic anime) {
     return StatefulBuilder(
@@ -866,7 +739,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                                   ],
                                 ),
                                 child: Text(
-                                  'MANGA',
+                                  'KOMIK',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -959,11 +832,6 @@ class _ExploreScreenState extends State<ExploreScreen>
   }
 
   void _showFilterDialog() {
-    final List<String> genreOptions = [
-      'All',
-      ...genres.map((genre) => genre['name'] as String).toList()
-    ];
-
     final List<int> years =
         List.generate(10, (index) => DateTime.now().year - index);
 
@@ -1019,47 +887,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                   ),
                 ),
               ),
-              SizedBox(height: 16),
-              Text(
-                'Genre',
-                style: TextStyle(
-                  color: AppTheme.textSecondaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 8),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: selectedGenre,
-                    isExpanded: true,
-                    dropdownColor: AppTheme.cardColor,
-                    style: TextStyle(color: Colors.white),
-                    icon: Icon(Icons.arrow_drop_down, color: Colors.white),
-                    items: genreOptions
-                        .map((genre) => DropdownMenuItem(
-                              value: genre,
-                              child: Text(genre),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() => selectedGenre = value!);
-                      Navigator.pop(context);
-                      if (value != 'All') {
-                        final genre = genres.firstWhere((g) => g['name'] == value);
-                        _performGenreSearch({'name': value, 'url': null});
-                      } else {
-                        _loadData();
-                      }
-                    },
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -1068,7 +895,6 @@ class _ExploreScreenState extends State<ExploreScreen>
             onPressed: () {
               setState(() {
                 selectedYear = DateTime.now().year;
-                selectedGenre = 'All';
               });
               Navigator.pop(context);
               _loadData();

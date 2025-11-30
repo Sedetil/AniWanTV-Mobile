@@ -310,12 +310,23 @@ class _HistoryScreenState extends State<HistoryScreen>
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () {
+                final String? url = item['url'] as String?;
+                if (url == null || url.isEmpty) {
+                  Fluttertoast.showToast(
+                    msg: 'Invalid item URL',
+                    toastLength: Toast.LENGTH_SHORT,
+                    gravity: ToastGravity.BOTTOM,
+                    backgroundColor: AppTheme.primaryColor,
+                    textColor: Colors.white,
+                  );
+                  return;
+                }
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => isAnime
-                        ? AnimeDetailsScreen(url: item['url'])
-                        : ComicDetailsScreen(url: item['url']),
+                        ? AnimeDetailsScreen(url: url)
+                        : ComicDetailsScreen(url: url),
                   ),
                 ).then((_) => _loadHistory());
               },
@@ -350,7 +361,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item['title'],
+                            item['title'] ?? 'Untitled',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -422,12 +433,22 @@ class _HistoryScreenState extends State<HistoryScreen>
                                 ),
                                 onPressed: () {
                                   if (isAnime) {
-                                    // Navigate directly to video player for anime
+                                    final String? url = item['url'] as String?;
+                                    if (url == null || url.isEmpty) {
+                                      Fluttertoast.showToast(
+                                        msg: 'Invalid item URL',
+                                        toastLength: Toast.LENGTH_SHORT,
+                                        gravity: ToastGravity.BOTTOM,
+                                        backgroundColor: AppTheme.primaryColor,
+                                        textColor: Colors.white,
+                                      );
+                                      return;
+                                    }
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => VideoPlayerScreen(
-                                          url: item['url'],
+                                          url: url,
                                           title: item['title'] ?? 'Episode',
                                           episodeId: item['id'] ??
                                               DateTime.now()
@@ -437,12 +458,22 @@ class _HistoryScreenState extends State<HistoryScreen>
                                       ),
                                     ).then((_) => _loadHistory());
                                   } else {
-                                    // Navigate directly to manga reader for manga
+                                    final String? url = item['url'] as String?;
+                                    if (url == null || url.isEmpty) {
+                                      Fluttertoast.showToast(
+                                        msg: 'Invalid item URL',
+                                        toastLength: Toast.LENGTH_SHORT,
+                                        gravity: ToastGravity.BOTTOM,
+                                        backgroundColor: AppTheme.primaryColor,
+                                        textColor: Colors.white,
+                                      );
+                                      return;
+                                    }
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => MangaReaderScreen(
-                                          url: item['url'],
+                                          url: url,
                                           title: item['title'] ?? 'Chapter',
                                           chapterId:
                                               item['chapter'] ?? 'Unknown',
@@ -456,8 +487,20 @@ class _HistoryScreenState extends State<HistoryScreen>
                               IconButton(
                                 icon: Icon(Icons.delete_outline, size: 20),
                                 color: Colors.red,
-                                onPressed: () =>
-                                    _removeHistoryItem(item['id'], isAnime),
+                                onPressed: () {
+                                  final String? id = item['id'] as String?;
+                                  if (id == null || id.isEmpty) {
+                                    Fluttertoast.showToast(
+                                      msg: 'Invalid item ID',
+                                      toastLength: Toast.LENGTH_SHORT,
+                                      gravity: ToastGravity.BOTTOM,
+                                      backgroundColor: AppTheme.primaryColor,
+                                      textColor: Colors.white,
+                                    );
+                                    return;
+                                  }
+                                  _removeHistoryItem(id, isAnime);
+                                },
                                 tooltip: 'Remove from history',
                               ),
                             ],

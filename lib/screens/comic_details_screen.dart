@@ -558,7 +558,8 @@ class _GoBackButton extends StatelessWidget {
                     ? AppTheme.primaryColor.withOpacity(0.9)
                     : AppTheme.primaryColor,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                 ),
@@ -589,7 +590,8 @@ class _ComicSliverAppBar extends StatelessWidget {
       backgroundColor: AppTheme.backgroundColor,
       actions: [_ShareButton(), _FavoriteButton(comic: comic, url: url)],
       flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.only(left: 60.0, bottom: 16.0, right: 120.0),
+        titlePadding:
+            const EdgeInsets.only(left: 60.0, bottom: 16.0, right: 120.0),
         title: _AnimatedAppBarTitle(title: comic['title']),
         background: Stack(
           fit: StackFit.expand,
@@ -675,6 +677,9 @@ class _FavoriteButton extends StatelessWidget {
     return StatefulBuilder(
       builder: (context, setState) {
         bool isHovered = false;
+        final appStateProvider = Provider.of<AppStateProvider>(context);
+        final isFavorited =
+            appStateProvider.favoriteComics.any((item) => item['url'] == url);
         return MouseRegion(
           cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => isHovered = true),
@@ -683,26 +688,32 @@ class _FavoriteButton extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             transform: Matrix4.identity()..scale(isHovered ? 1.1 : 1.0),
             child: IconButton(
-              icon: const Icon(Icons.bookmark_border),
+              icon: Icon(isFavorited ? Icons.bookmark : Icons.bookmark_border,
+                  color: isFavorited ? AppTheme.accentColor : null),
               onPressed: () async {
                 try {
-                  final appStateProvider = Provider.of<AppStateProvider>(context, listen: false);
+                  final appStateProvider =
+                      Provider.of<AppStateProvider>(context, listen: false);
                   await appStateProvider.initialize();
-                  
-                  // Check if comic already exists in favorites
-                  final comicExists = appStateProvider.favoriteComics.any((item) => item['url'] == url);
-                  if (comicExists) {
-                    Fluttertoast.showToast(
-                      msg: 'Comic already in favorites',
-                      toastLength: Toast.LENGTH_SHORT,
-                      gravity: ToastGravity.BOTTOM,
-                      backgroundColor: Colors.orange,
-                      textColor: Colors.white,
-                    );
-                    return;
+                  final existing = appStateProvider.favoriteComics
+                      .where((item) => item['url'] == url)
+                      .toList();
+                  if (existing.isNotEmpty) {
+                    final id = existing.first['id']?.toString() ?? '';
+                    if (id.isNotEmpty) {
+                      await appStateProvider.removeFromFavorites(id, false);
+                      Fluttertoast.showToast(
+                        msg: 'Removed from favorites',
+                        toastLength: Toast.LENGTH_SHORT,
+                        gravity: ToastGravity.BOTTOM,
+                        backgroundColor: Colors.red,
+                        textColor: Colors.white,
+                      );
+                      setState(() {});
+                      return;
+                    }
                   }
-                  
-                  // Add to favorites using AppStateProvider
+
                   await appStateProvider.addToFavorites({
                     'title': comic['title'] ?? 'No Title',
                     'image_url': comic['image_url'] ?? '',
@@ -712,7 +723,7 @@ class _FavoriteButton extends StatelessWidget {
                         : 'No description available',
                     'rating': comic['rating'],
                   }, false);
-                  
+
                   Fluttertoast.showToast(
                     msg: 'Added to favorites',
                     toastLength: Toast.LENGTH_SHORT,
@@ -720,6 +731,7 @@ class _FavoriteButton extends StatelessWidget {
                     backgroundColor: Colors.green,
                     textColor: Colors.white,
                   );
+                  setState(() {});
                 } catch (e) {
                   Fluttertoast.showToast(
                     msg: 'Error adding to favorites: $e',
@@ -812,53 +824,47 @@ class _AnimatedInfoCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _InfoRow(
-                          label: 'Rating',
-                          infoValue: comic['rating']?.toString() ?? 'N/A',
-                          icon: Icons.star,
-                          iconColor: Colors.amber,
-                        ),
-                        _InfoRow(
-                          label: 'Author',
-                          infoValue: comic['author']?.toString() ?? 'Unknown',
-                          icon: Icons.person,
-                          iconColor: Colors.blue,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _InfoRow(
-                          label: 'Illustrator',
-                          infoValue: comic['illustrator']?.toString() ?? 'Wuer Manhua, Ye Xiao',
-                          icon: Icons.brush,
-                          iconColor: Colors.purple,
-                        ),
-                        _InfoRow(
-                          label: 'Type',
-                          infoValue: comic['type']?.toString() ?? 'Manhua',
-                          icon: Icons.category,
-                          iconColor: Colors.green,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _InfoRow(
-                          label: 'Status',
-                          infoValue: comic['status']?.toString() ?? 'Berjalan',
-                          icon: Icons.info_outline,
-                          iconColor: Colors.orange,
-                        ),
-                        const Opacity(opacity: 0),
-                      ],
+                    Builder(
+                      builder: (context) {
+                        final altTitles =
+                            (comic['alternative_titles'] as List?) ?? [];
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _InfoPill(
+                              icon: Icons.star,
+                              text: comic['rating']?.toString() ?? 'N/A',
+                              iconColor: Colors.amber,
+                            ),
+                            if (comic['type'] != null)
+                              _InfoPill(
+                                icon: Icons.category,
+                                text: comic['type'].toString(),
+                              ),
+                            if (comic['status'] != null)
+                              _InfoPill(
+                                icon: Icons.info_outline,
+                                text: comic['status'].toString(),
+                              ),
+                            if (comic['demographic'] != null)
+                              _InfoPill(
+                                icon: Icons.group,
+                                text: comic['demographic'].toString(),
+                              ),
+                            if (comic['author'] != null)
+                              _InfoPill(
+                                icon: Icons.person,
+                                text: comic['author'].toString(),
+                              ),
+                            if (comic['illustrator'] != null)
+                              _InfoPill(
+                                icon: Icons.brush,
+                                text: comic['illustrator'].toString(),
+                              ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 20),
                     _GenresChips(genres: comic['genres'] ?? []),
@@ -948,11 +954,12 @@ class _InfoRow extends StatelessWidget {
                       Flexible(
                         child: Text(
                           label,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.5,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 0.5,
+                                  ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
@@ -975,6 +982,49 @@ class _InfoRow extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color? iconColor;
+  const _InfoPill({required this.icon, required this.text, this.iconColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 180),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppTheme.primaryColor.withOpacity(0.3),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: iconColor ?? AppTheme.primaryColor),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1010,7 +1060,8 @@ class _GenresChips extends StatelessWidget {
                             AppTheme.primaryColor.withOpacity(0.1),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSmall),
                         border: Border.all(
                           color: AppTheme.primaryColor.withOpacity(0.3),
                           width: 1.5,
@@ -1040,7 +1091,8 @@ class _GenresChips extends StatelessWidget {
                   children: genres.asMap().entries.map((entry) {
                     int index = entry.key;
                     String genre = entry.value.toString();
-                    Color genreColor = Colors.primaries[index % Colors.primaries.length];
+                    Color genreColor =
+                        Colors.primaries[index % Colors.primaries.length];
                     return _GenreChip(genre: genre, color: genreColor);
                   }).toList(),
                 ),
@@ -1083,7 +1135,9 @@ class _GenreChip extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
                 border: Border.all(
-                  color: isHovered ? color.withOpacity(0.6) : color.withOpacity(0.3),
+                  color: isHovered
+                      ? color.withOpacity(0.6)
+                      : color.withOpacity(0.3),
                   width: isHovered ? 2 : 1.5,
                 ),
                 boxShadow: isHovered
@@ -1161,34 +1215,39 @@ class _AnimatedAlternativeTitlesSection extends StatelessWidget {
                     child: Wrap(
                       spacing: 8.0,
                       runSpacing: 8.0,
-                      children: (comic['alternative_titles'] as List? ?? [
-                        "Best Devil Housekeeper",
-                        "Demon Emperor Butler",
-                        "Demon Emperor Great Butler",
-                        "Demon Emperor Housekeeper",
-                        "Housekeeper is the Magic Emperor",
-                        "Demonic Emperor",
-                        "Mo Huang Da Guan Jia",
-                        "The Steward demonic emperor",
-                        "Как демон-император стал дворецким",
-                        "魔皇大管家"
-                      ]).map((title) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: AppTheme.primaryColor.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Text(
-                          title.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                        ),
-                      )).toList(),
+                      children: (comic['alternative_titles'] as List? ??
+                              [
+                                "Best Devil Housekeeper",
+                                "Demon Emperor Butler",
+                                "Demon Emperor Great Butler",
+                                "Demon Emperor Housekeeper",
+                                "Housekeeper is the Magic Emperor",
+                                "Demonic Emperor",
+                                "Mo Huang Da Guan Jia",
+                                "The Steward demonic emperor",
+                                "Как демон-император стал дворецким",
+                                "魔皇大管家"
+                              ])
+                          .map((title) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color:
+                                        AppTheme.primaryColor.withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Text(
+                                  title.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ))
+                          .toList(),
                     ),
                   ),
                 ),
@@ -1260,7 +1319,8 @@ class _AnimatedSynopsisSection extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Text(
-                      _cleanSynopsis(comic['synopsis']) ?? 'No synopsis available',
+                      _cleanSynopsis(comic['synopsis']) ??
+                          'No synopsis available',
                       style: const TextStyle(
                         fontSize: 16,
                         height: 1.5,
@@ -1313,9 +1373,11 @@ class _AnimatedChaptersHeader extends StatelessWidget {
                       onExit: (_) => setState(() => isHovered = false),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        transform: Matrix4.identity()..scale(isHovered ? 1.05 : 1.0),
+                        transform: Matrix4.identity()
+                          ..scale(isHovered ? 1.05 : 1.0),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: isHovered
                                 ? AppTheme.primaryColor.withOpacity(0.9)
@@ -1324,7 +1386,8 @@ class _AnimatedChaptersHeader extends StatelessWidget {
                             boxShadow: isHovered
                                 ? [
                                     BoxShadow(
-                                      color: AppTheme.primaryColor.withOpacity(0.5),
+                                      color: AppTheme.primaryColor
+                                          .withOpacity(0.5),
                                       blurRadius: 20,
                                       spreadRadius: 0,
                                       offset: const Offset(0, 8),
@@ -1338,7 +1401,8 @@ class _AnimatedChaptersHeader extends StatelessWidget {
                                   ]
                                 : [
                                     BoxShadow(
-                                      color: AppTheme.primaryColor.withOpacity(0.3),
+                                      color: AppTheme.primaryColor
+                                          .withOpacity(0.3),
                                       blurRadius: 16,
                                       spreadRadius: 0,
                                       offset: const Offset(0, 6),
@@ -1375,7 +1439,8 @@ class _AnimatedChaptersHeader extends StatelessWidget {
 class _AnimatedSearchField extends StatelessWidget {
   final String searchQuery;
   final Function(String) onChanged;
-  const _AnimatedSearchField({required this.searchQuery, required this.onChanged});
+  const _AnimatedSearchField(
+      {required this.searchQuery, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -1418,7 +1483,8 @@ class _AnimatedSearchField extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: 'Search chapters...',
                   hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                  prefixIcon: const Icon(Icons.search, color: AppTheme.primaryColor),
+                  prefixIcon:
+                      const Icon(Icons.search, color: AppTheme.primaryColor),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -1564,7 +1630,8 @@ class _ChapterTile extends StatelessWidget {
                 splashColor: AppTheme.primaryColor.withOpacity(0.1),
                 highlightColor: AppTheme.primaryColor.withOpacity(0.05),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
                     children: [
                       Container(
@@ -1582,11 +1649,13 @@ class _ChapterTile extends StatelessWidget {
                                   ],
                                 )
                               : AppTheme.primaryGradient,
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusMedium),
                           boxShadow: isHovered
                               ? [
                                   BoxShadow(
-                                    color: AppTheme.primaryColor.withOpacity(0.5),
+                                    color:
+                                        AppTheme.primaryColor.withOpacity(0.5),
                                     blurRadius: 20,
                                     spreadRadius: 0,
                                     offset: const Offset(0, 8),
@@ -1600,7 +1669,8 @@ class _ChapterTile extends StatelessWidget {
                                 ]
                               : [
                                   BoxShadow(
-                                    color: AppTheme.primaryColor.withOpacity(0.3),
+                                    color:
+                                        AppTheme.primaryColor.withOpacity(0.3),
                                     blurRadius: 16,
                                     spreadRadius: 0,
                                     offset: const Offset(0, 6),
@@ -1646,9 +1716,12 @@ class _ChapterTile extends StatelessWidget {
                                   ),
                                 ),
                                 if (chapterNumber.contains('-') ||
-                                    (chapterNumber.toLowerCase().contains('chapter') &&
+                                    (chapterNumber
+                                            .toLowerCase()
+                                            .contains('chapter') &&
                                         chapterNumber.length >
-                                            ('Chapter ' + chapterNumberDisplay).length))
+                                            ('Chapter ' + chapterNumberDisplay)
+                                                .length))
                                   Expanded(
                                     child: Text(
                                       ' ' +
@@ -1659,7 +1732,8 @@ class _ChapterTile extends StatelessWidget {
                                       style: TextStyle(
                                         fontWeight: FontWeight.normal,
                                         color: isHovered
-                                            ? AppTheme.primaryColor.withOpacity(0.9)
+                                            ? AppTheme.primaryColor
+                                                .withOpacity(0.9)
                                             : AppTheme.primaryColor,
                                         fontSize: 14,
                                       ),
@@ -1682,7 +1756,8 @@ class _ChapterTile extends StatelessWidget {
                               AppTheme.primaryColor.withOpacity(0.1),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusSmall),
                           border: Border.all(
                             color: AppTheme.primaryColor.withOpacity(0.3),
                             width: 1.5,
@@ -1707,4 +1782,3 @@ class _ChapterTile extends StatelessWidget {
     );
   }
 }
-
