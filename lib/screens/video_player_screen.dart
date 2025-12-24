@@ -8,6 +8,7 @@ import 'dart:async';
 import '../widgets/custom_controls.dart';
 import '../widgets/custom_error_dialog.dart';
 import '../theme/app_theme.dart';
+import '../widgets/custom_loading_widget.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String url;
@@ -144,11 +145,20 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         print('Current position: ${currentPosition.inSeconds}s');
         print('Was fullscreen: $wasFullScreen');
 
-        // Dispose of existing controllers
-        _disposeControllers();
+        print('Was fullscreen: $wasFullScreen');
+        
+        // Unmount the player from UI first to prevent access to disposed controller
+        if (mounted) {
+           setState(() {
+              _isInitialized = false; 
+           });
+        }
 
-        // Wait a bit to ensure disposal is complete
+        // Wait a bit to ensure UI updates and player is unmounted
         await Future.delayed(Duration(milliseconds: 100));
+
+        // Now safe to dispose
+        _disposeControllers();
 
         if (!mounted) return;
 
@@ -345,6 +355,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             qualityOptions: _pixelDrainUrls,
             selectedQuality: _selectedQuality,
             onQualityChanged: _changeVideoQuality,
+            onNextEpisode: () {
+               // Placeholder for next episode logic
+               // To implement this, we need to pass the full episode list to this screen
+               // For now, show a toast or log
+               print('Next Episode clicked');
+               // ToastUtils.show('Next Episode not available in this demo');
+            },
+            onShowEpisodes: () {
+               // Placeholder for episodes list
+               print('Show Episodes clicked');
+               // ToastUtils.show('Episodes list not available in this demo');
+            },
           ),
           placeholder: Center(
             child: CircularProgressIndicator(
@@ -544,6 +566,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
+  int _lastSavedSeconds = -1;
+
   Future<void> _saveCurrentPosition() async {
     if (!_isDirectVideo ||
         !_isInitialized ||
@@ -551,9 +575,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         !_videoPlayerController!.value.isInitialized) return;
 
     final position = _videoPlayerController!.value.position;
-    if (position != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('position_${widget.episodeId}', position.inSeconds);
+    final currentSeconds = position.inSeconds;
+
+    // Only save if 5 seconds have passed or if time jumped backwards (seek)
+    if (_lastSavedSeconds == -1 || 
+        (currentSeconds - _lastSavedSeconds).abs() >= 5) {
+      _lastSavedSeconds = currentSeconds;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('position_${widget.episodeId}', currentSeconds);
+      } catch (e) {
+        print('Error saving position: $e');
+      }
     }
   }
 
@@ -600,9 +633,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     // Ensure system UI stays hidden when widget rebuilds
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    });
+
 
     return PopScope(
       onPopInvoked: (didPop) {
@@ -647,51 +678,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 Container(
                   color: Colors.black.withOpacity(0.8),
                   child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.red.withOpacity(0.3),
-                              width: 1,
-                            ),
-                          ),
-                          child: CircularProgressIndicator(
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.red),
-                            strokeWidth: 3,
-                          ),
-                        ),
-                        SizedBox(height: 24),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _isChangingResolution
-                                ? 'Changing quality...'
-                                : 'Loading video...',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: CustomLoadingWidget(
+                        message: _isChangingResolution ? "Switching Quality..." : "Loading...",
+                        color: Colors.red,
                     ),
                   ),
                 ),
+
+
             ],
           ),
         ),
@@ -704,39 +698,54 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       return Container(
         color: Colors.black,
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
-                  strokeWidth: 2,
-                ),
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Initializing...',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+          child: CustomLoadingWidget(
+            message: 'Initializing...',
+            color: Colors.red,
           ),
         ),
       );
     }
 
     if (_isDirectVideo && _chewieController != null) {
-      return Chewie(controller: _chewieController!);
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // 1. Video Layer (Immersive, Under Notch)
+          if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized)
+            SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.contain, // Maintain aspect ratio, fully visible
+                child: SizedBox(
+                   width: _videoPlayerController!.value.size.width,
+                   height: _videoPlayerController!.value.size.height,
+                   child: VideoPlayer(_videoPlayerController!),
+                ),
+              ),
+            ),
+            
+          // 2. Controls Layer
+          CustomControls(
+            controller: _chewieController,
+            backgroundColor: Colors.transparent,
+            iconColor: Colors.white,
+            title: widget.title,
+            onBackPressed: () {
+               Navigator.of(context).pop();
+            },
+            qualityOptions: _pixelDrainUrls,
+            selectedQuality: _selectedQuality,
+            onQualityChanged: _changeVideoQuality,
+            onNextEpisode: () {
+               // Placeholder
+               print('Next Episode');
+            },
+            onShowEpisodes: () {
+               // Placeholder
+               print('Episodes List');
+            },
+          ),
+        ],
+      );
     }
 
     if (_webViewController != null) {

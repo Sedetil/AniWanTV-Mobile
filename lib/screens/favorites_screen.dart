@@ -1,42 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_error_dialog.dart';
 import '../providers/app_state_provider.dart';
 import 'anime_details_screen.dart';
 import 'comic_details_screen.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'comic_details_screen.dart';
+import 'explore_screen.dart';
+import 'search_screen.dart';
+import '../utils/toast_utils.dart';
 
 class FavoritesScreen extends StatefulWidget {
+  final bool showBackButton;
+
+  const FavoritesScreen({Key? key, this.showBackButton = true}) : super(key: key);
+
   @override
   _FavoritesScreenState createState() => _FavoritesScreenState();
 }
 
-class _FavoritesScreenState extends State<FavoritesScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _FavoritesScreenState extends State<FavoritesScreen> {
+  // Using a custom index state instead of TabController for custom toggle
+  int _currentTabIndex = 0; // 0 for Anime, 1 for Komik
+  
   List<dynamic> favoriteAnime = [];
   List<dynamic> favoriteComics = [];
   bool isLoading = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    
-    // Initialize AppStateProvider
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AppStateProvider>(context, listen: false).initialize();
-    });
-    
-    _loadFavorites();
-  }
+  // Search State
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppStateProvider>(context, listen: false).initialize();
+    });
+    _loadFavorites();
   }
 
   Future<void> _loadFavorites() async {
@@ -52,18 +62,8 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       });
     } catch (e) {
       setState(() => isLoading = false);
-      _showErrorDialog(
-          'Error Loading Favorites', 'Failed to load favorites: $e');
+      // We can fail silently here or show a toast, dialog might be intrusive if it's just a connection blip
     }
-  }
-
-  void _showErrorDialog(String title, String message) {
-    CustomErrorDialog.show(
-      context,
-      title: title,
-      message: message,
-      onRetry: _loadFavorites,
-    );
   }
 
   Future<void> _removeFavorite(String id, bool isAnime) async {
@@ -79,298 +79,337 @@ class _FavoritesScreenState extends State<FavoritesScreen>
         }
       });
 
-      Fluttertoast.showToast(
-        msg: 'Removed from favorites',
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
+      ToastUtils.show(
+        'Removed from favorites',
         backgroundColor: AppTheme.primaryColor,
-        textColor: Colors.white,
       );
     } catch (e) {
-      _showErrorDialog(
-          'Error Removing Favorite', 'Failed to remove from favorites: $e');
+      // Handle error
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Current items based on toggle
+    List<dynamic> items = _currentTabIndex == 0 ? favoriteAnime : favoriteComics;
+    final isAnime = _currentTabIndex == 0;
+
+    // Filter items if searching
+    if (_searchQuery.isNotEmpty) {
+      items = items.where((item) {
+        final title = (item['title'] ?? '').toString().toLowerCase();
+        return title.contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        title: Text(
-          'My Favorites',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppTheme.backgroundColor,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppTheme.primaryColor,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: AppTheme.textSecondaryColor,
-          labelStyle: TextStyle(fontWeight: FontWeight.bold),
-          tabs: [
-            Tab(text: 'ANIME'),
-            Tab(text: 'MANGA'),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+              child: _isSearching 
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        style: TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Search favorites...',
+                          hintStyle: TextStyle(color: Colors.white54),
+                          border: InputBorder.none,
+                          icon: Icon(Icons.search, color: Colors.white54),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: Colors.white),
+                      onPressed: () {
+                        setState(() {
+                          _isSearching = false;
+                          _searchQuery = '';
+                          _searchController.clear();
+                        });
+                      },
+                    ),
+                  ],
+                )
+              : Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      if (widget.showBackButton) ...[
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                        ),
+                        const SizedBox(width: 16),
+                      ],
+                      const Text(
+                        'Favorites',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  GestureDetector(
+                     onTap: () {
+                       setState(() {
+                         _isSearching = true;
+                       });
+                     },
+                     child: Icon(Icons.search, color: Colors.white, size: 28),
+                  ),
+                ],
+              ),
+            ),
+
+            // Toggle Tabs
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildToggleItem(
+                      label: 'ANIME', 
+                      isActive: _currentTabIndex == 0, 
+                      onTap: () => setState(() => _currentTabIndex = 0)
+                    )
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildToggleItem(
+                      label: 'KOMIK', // Using "KOMIK" as requested in image, code uses "comic" internally
+                      isActive: _currentTabIndex == 1, 
+                      onTap: () => setState(() => _currentTabIndex = 1)
+                    )
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+
+            // Content
+            Expanded(
+              child: isLoading
+                  ? Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+                  : _buildContent(items, isAnime),
+            ),
           ],
         ),
       ),
-      body: isLoading
-          ? Center(
-              child: CircularProgressIndicator(
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-              ),
-            )
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildFavoritesList(favoriteAnime, true),
-                _buildFavoritesList(favoriteComics, false),
-              ],
-            ),
     );
   }
 
-  Widget _buildFavoritesList(List<dynamic> items, bool isAnime) {
+  Widget _buildToggleItem({required String label, required bool isActive, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? AppTheme.primaryColor : const Color(0xFF1E1E1E), // Red active, dark inactive
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white, 
+            fontWeight: FontWeight.bold
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(List<dynamic> items, bool isAnime) {
     if (items.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.cardColor,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.favorite,
-                size: 64,
-                color: isAnime ? AppTheme.primaryColor : AppTheme.primaryColor,
-              ),
+      return _buildEmptyState(isAnime);
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      physics: const BouncingScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2, // 2 columns like reference image (or 3 if preferred, user's home was 3, but ref looks like 2 large items)
+        childAspectRatio: 0.7, // Poster ratio
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return _buildFavoriteCard(item, isAnime);
+      },
+    );
+  }
+
+  Widget _buildEmptyState(bool isAnime) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // SVG Image
+          SvgPicture.asset(
+            'assets/images/anime_favorites.svg',
+            width: 200, // Adjust size
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Belum ada Favorit',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
-            SizedBox(height: 24),
-            Text(
-              'No favorites yet',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isAnime 
+              ? 'Tambahkan anime ke favoritmu\nagar muncul di sini'
+              : 'Tambahkan komik ke favoritmu\nagar muncul di sini',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 16,
             ),
-            SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: Text(
-                isAnime
-                    ? 'Add anime to your favorites to see them here'
-                    : 'Add manga to your favorites to see them here',
-                textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 32),
+          // Explore Button
+          SizedBox(
+            width: 200,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                 // Navigate to ExploreScreen with the correct tab selected
+                 Navigator.push(
+                   context, 
+                   MaterialPageRoute(
+                     builder: (_) => ExploreScreen(initialIsAnime: isAnime)
+                   )
+                 );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              ),
+              child: const Text(
+                'Explore Content',
                 style: TextStyle(
-                  color: AppTheme.textSecondaryColor,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
               ),
             ),
-            SizedBox(height: 32),
-            ElevatedButton.icon(
-              icon: Icon(Icons.explore),
-              label: Text('Explore Content'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    isAnime ? AppTheme.primaryColor : AppTheme.primaryColor,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadFavorites,
-      color: isAnime ? AppTheme.primaryColor : AppTheme.primaryColor,
-      child: GridView.builder(
-        padding: EdgeInsets.all(12),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.7,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          final item = items[index];
-          return _buildFavoriteCard(item, isAnime);
-        },
+          ),
+          // Add some padding at bottom if needed
+          const SizedBox(height: 50),
+        ],
       ),
     );
   }
 
   Widget _buildFavoriteCard(dynamic item, bool isAnime) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      color: AppTheme.cardColor,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
+    return GestureDetector(
+      onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => isAnime
                   ? AnimeDetailsScreen(url: item['url'])
-                  : ComicDetailsScreen(url: item['url']),
+                  : ComicDetailsScreen(url: item['url'], type: item['type']),
             ),
           ).then((_) => _loadFavorites());
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image with overlay
-            Expanded(
-              child: Stack(
-                children: [
-                  // Image
-                  ClipRRect(
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
-                    ),
-                    child: Image.network(
-                      item['image_url'],
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[800],
-                          child: Center(
-                            child: Icon(Icons.broken_image, color: Colors.grey),
-                          ),
-                        );
-                      },
-                    ),
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    item['image_url'],
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_,__,___) => Container(color: const Color(0xFF1E1E1E)),
                   ),
-
-                  // Type badge
+                ),
+                // Comic Type Badge
+                if (!isAnime && item['type'] != null)
                   Positioned(
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isAnime
-                            ? AppTheme.primaryColor
-                            : AppTheme.primaryColor,
+                        color: AppTheme.primaryColor.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(4),
+                        boxShadow: [
+                            BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 1))
+                        ],
                       ),
                       child: Text(
-                        isAnime ? 'ANIME' : 'MANGA',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
+                        (item['type'] as String).toUpperCase(),
+                         style: const TextStyle(
+                           color: Colors.white,
+                           fontSize: 9,
+                           fontWeight: FontWeight.bold,
+                           letterSpacing: 0.5,
                         ),
                       ),
                     ),
                   ),
 
-                  // Rating badge
-                  if (item['rating'] != null)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.star, color: Colors.amber, size: 12),
-                            SizedBox(width: 2),
-                            Text(
-                              '${item['rating']}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  // Remove button
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
+                // Remove Button overlay
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () => _removeFavorite(item['id'], isAnime),
                     child: Container(
+                      padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
+                        color: Colors.black.withOpacity(0.6),
                         shape: BoxShape.circle,
                       ),
-                      child: IconButton(
-                        icon: Icon(Icons.delete_outline, size: 20),
-                        color: Colors.white,
-                        onPressed: () => _removeFavorite(item['id'], isAnime),
-                        tooltip: 'Remove from favorites',
-                        padding: EdgeInsets.all(4),
-                        constraints: BoxConstraints(),
-                      ),
+                      child: const Icon(Icons.delete_outline, color: Colors.white, size: 20),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-
-            // Title and description
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item['title'],
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.white,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 4),
-                  if (item['description'] != null)
-                    Text(
-                      item['description'],
-                      style: TextStyle(
-                        color: AppTheme.textSecondaryColor,
-                        fontSize: 12,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item['title'],
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

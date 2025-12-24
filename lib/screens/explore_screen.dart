@@ -6,29 +6,34 @@ import '../widgets/custom_error_dialog.dart';
 import '../providers/app_state_provider.dart';
 import 'anime_details_screen.dart';
 import 'comic_details_screen.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'search_screen.dart';
+import '../widgets/custom_loading_widget.dart';
+
 
 class ExploreScreen extends StatefulWidget {
+  final bool initialIsAnime;
+  final bool showBackButton;
+
+  const ExploreScreen({
+    Key? key,
+    this.initialIsAnime = true,
+    this.showBackButton = true,
+  }) : super(key: key);
+
   @override
   _ExploreScreenState createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  List<dynamic> genres = [];
+class _ExploreScreenState extends State<ExploreScreen> {
+  int _currentTabIndex = 0; // 0: Anime, 1: Komik
   List<dynamic> latestAnime = [];
   List<dynamic> latestComics = [];
-  bool isLoadingGenres = true;
   bool isLoadingContent = true;
-  String selectedGenre = 'All';
-  String selectedFilter = 'All';
-  int selectedYear = DateTime.now().year;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _currentTabIndex = widget.initialIsAnime ? 0 : 1;
     
     // Initialize AppStateProvider
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -36,12 +41,6 @@ class _ExploreScreenState extends State<ExploreScreen>
     });
     
     _loadData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -110,810 +109,217 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
-  Future<void> _performGenreSearch(Map<String, dynamic> genre) async {
-    setState(() {
-      isLoadingContent = true;
-    });
-
-    try {
-      List<dynamic> allResults = [];
-      
-      if (genre['url'] != null) {
-        final genreContent = await ApiService.fetchGenreContent(genre['url']);
-        if (genreContent['content'] != null) {
-          allResults = genreContent['content'].map((item) {
-            String itemType = 'unknown';
-            if (item['type'] != null) {
-              final originalType = item['type'].toString().toLowerCase();
-              if (originalType == 'anime') {
-                itemType = 'anime';
-              } else if (originalType == 'comic' || originalType == 'manga') {
-                itemType = 'comic';
-              } else if (originalType == 'movie' || originalType == 'series') {
-                itemType = 'anime';
-              } else {
-                itemType = 'anime';
-              }
-            } else {
-              itemType = 'anime';
-            }
-            return {...item, 'type': itemType};
-          }).toList();
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          // Update content based on current tab
-          if (_tabController.index == 0) {
-            latestAnime = allResults.where((item) => item['type'] == 'anime').toList();
-          } else {
-            latestComics = allResults.where((item) => item['type'] == 'comic').toList();
-          }
-          isLoadingContent = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => isLoadingContent = false);
-        _showErrorDialog('Search Error', 'Failed to perform search: $e');
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        title: Text(
-          'Explore',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppTheme.backgroundColor,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.filter_list, color: Colors.white),
-            onPressed: _showFilterDialog,
-            tooltip: 'Filter results',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildContentTabs(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGenreSelector() {
-    return Container(
-      height: 60,
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: isLoadingGenres
-          ? Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-              ),
-            )
-          : ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              itemCount: genres.length + 1, // +1 for "All" option
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _buildGenreChip({'name': 'All', 'url': null}, true);
-                }
-                final genre = genres[index - 1];
-                return _buildGenreChip(genre, false);
-              },
-            ),
-    );
-  }
-
-  Widget _buildGenreChip(Map<String, dynamic> genre, bool isAll) {
-    final isSelected = selectedGenre == genre['name'];
-    
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool _isHovered = false;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _isHovered = true),
-          onExit: (_) => setState(() => _isHovered = false),
-          child: AnimatedContainer(
-            duration: Duration(milliseconds: 200),
-            margin: EdgeInsets.only(right: 8),
-            transform: Matrix4.identity()
-              ..scale(_isHovered ? 1.05 : 1.0),
-            child: ActionChip(
-              label: Text(
-                genre['name'],
-                style: TextStyle(
-                  color: isSelected || _isHovered
-                    ? AppTheme.backgroundColor
-                    : Colors.white,
-                  fontSize: _isHovered ? 13 : 12,
-                  fontWeight: isSelected || _isHovered ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-              backgroundColor: isSelected || _isHovered
-                ? AppTheme.primaryColor
-                : AppTheme.primaryColor.withOpacity(0.2),
-              side: BorderSide(
-                color: isSelected || _isHovered
-                  ? AppTheme.primaryColor
-                  : AppTheme.primaryColor.withOpacity(0.5),
-                width: isSelected || _isHovered ? 2 : 1
-              ),
-              onPressed: () {
-                setState(() {
-                  selectedGenre = genre['name'];
-                });
-                if (!isAll) {
-                  _performGenreSearch(genre);
-                } else {
-                  _loadData(); // Reload all data when "All" is selected
-                }
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildContentTabs() {
-    return Expanded(
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppTheme.backgroundColor,
-        ),
-        child: Column(
-          children: [
-            // Tab bar
-            Container(
-              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: AppTheme.glassGradient,
-                borderRadius: BorderRadius.circular(AppTheme.radiusXLarge),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
-                  width: 1,
-                ),
-                boxShadow: AppTheme.subtleShadow,
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                  gradient: AppTheme.primaryGradient,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryColor.withOpacity(0.3),
-                      blurRadius: 8,
-                      spreadRadius: 0,
-                    ),
-                  ],
-                ),
-                labelColor: Colors.white,
-                unselectedLabelColor: AppTheme.textSecondaryColor,
-                labelStyle: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal, letterSpacing: 0.25),
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                tabs: const [
-                  Tab(text: 'ANIME'),
-                  Tab(text: 'KOMIK'),
-                ],
-              ),
-            ),
-            
-            // Tab content
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildAnimeContent(),
-                  _buildMangaContent(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimeContent() {
-    if (isLoadingContent) {
-      return Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        
-        // Latest Anime Section
-        _buildSectionHeader('Latest Anime'),
-        Expanded(
-          child: GridView.builder(
-            padding: EdgeInsets.all(16),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.7,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-            ),
-            itemCount: latestAnime.length,
-            itemBuilder: (context, index) {
-              final anime = latestAnime[index];
-              return _buildAnimeGridCard(anime);
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMangaContent() {
-    if (isLoadingContent) {
-      return Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentColor),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        // Latest Manga Section
-        _buildSectionHeader('Latest Komik'),
-        Expanded(
-          child: GridView.builder(
-            padding: EdgeInsets.all(16),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.7,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-            ),
-            itemCount: latestComics.length,
-            itemBuilder: (context, index) {
-              final comic = latestComics[index];
-              return _buildMangaGridCard(comic);
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppTheme.primaryColor.withOpacity(0.2),
-                  AppTheme.primaryColor.withOpacity(0.1),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              border: Border.all(
-                color: AppTheme.primaryColor.withOpacity(0.3),
-                width: 1.5,
-              ),
-            ),
-            child: Icon(
-              Icons.category,
-              color: AppTheme.primaryColor,
-              size: 20,
-            ),
-          ),
-          SizedBox(width: 12),
-          Text(
-            title,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              letterSpacing: 0.5,
-              fontSize: 18,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  Widget _buildAnimeGridCard(dynamic anime) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool _isHovered = false;
-        return AnimatedContainer(
-          duration: Duration(milliseconds: 200),
-          transform: Matrix4.identity()
-            ..scale(_isHovered ? 1.03 : 1.0),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AnimeDetailsScreen(url: anime['url']),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-              splashColor: AppTheme.primaryColor.withOpacity(0.1),
-              highlightColor: AppTheme.primaryColor.withOpacity(0.05),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                onEnter: (_) => setState(() => _isHovered = true),
-                onExit: (_) => setState(() => _isHovered = false),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppTheme.surfaceColor,
-                        AppTheme.cardColor,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                    boxShadow: _isHovered
-                      ? AppTheme.mediumShadow
-                      : AppTheme.subtleShadow,
-                    border: Border.all(
-                      color: Colors.white.withOpacity(_isHovered ? 0.1 : 0.05),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(AppTheme.radiusMedium),
-                                topRight: Radius.circular(AppTheme.radiusMedium),
-                              ),
-                              child: Image.network(
-                                anime['image_url'] ?? '',
-                                width: double.infinity,
-                                height: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          AppTheme.surfaceColor,
-                                          AppTheme.cardColor,
-                                        ],
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Icon(Icons.broken_image, color: AppTheme.textSecondaryColor),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            // Type badge
-                            Positioned(
-                              top: 8,
-                              left: 8,
-                              child: Container(
-                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  gradient: AppTheme.primaryGradient,
-                                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                                  border: Border.all(
-                                    color: AppTheme.primaryColor.withOpacity(0.3),
-                                    width: 1.5,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppTheme.primaryColor.withOpacity(0.2),
-                                      blurRadius: 6,
-                                      spreadRadius: 0,
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  'ANIME',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Gradient overlay for better text readability
-                            Positioned.fill(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.transparent,
-                                      Colors.transparent,
-                                      Colors.black.withOpacity(_isHovered ? 0.4 : 0.3),
-                                    ],
-                                    stops: [0.0, 0.5, 1.0],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Play button overlay on hover
-                            if (_isHovered)
-                              Positioned.fill(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: RadialGradient(
-                                      center: Alignment.center,
-                                      radius: 0.8,
-                                      colors: [
-                                        Colors.black.withOpacity(0.3),
-                                        Colors.transparent,
-                                      ],
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.play_circle_filled,
-                                    color: Colors.white.withOpacity(0.9),
-                                    size: 40,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              anime['title'] ?? 'No Title',
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: _isHovered
-                                  ? AppTheme.primaryColor.withOpacity(0.9)
-                                  : Colors.white,
-                                height: 1.2,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (anime['genres'] != null && anime['genres'].isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6.0),
-                                child: Text(
-                                  anime['genres'][0],
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.textSecondaryColor,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMangaGridCard(dynamic manga) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool _isHovered = false;
-        return AnimatedContainer(
-          duration: Duration(milliseconds: 200),
-          transform: Matrix4.identity()
-            ..scale(_isHovered ? 1.03 : 1.0),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ComicDetailsScreen(url: manga['url']),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-              splashColor: AppTheme.accentColor.withOpacity(0.1),
-              highlightColor: AppTheme.accentColor.withOpacity(0.05),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                onEnter: (_) => setState(() => _isHovered = true),
-                onExit: (_) => setState(() => _isHovered = false),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppTheme.surfaceColor,
-                        AppTheme.cardColor,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                    boxShadow: _isHovered
-                      ? AppTheme.mediumShadow
-                      : AppTheme.subtleShadow,
-                    border: Border.all(
-                      color: Colors.white.withOpacity(_isHovered ? 0.1 : 0.05),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(AppTheme.radiusMedium),
-                                topRight: Radius.circular(AppTheme.radiusMedium),
-                              ),
-                              child: Image.network(
-                                manga['image_url'] ?? '',
-                                width: double.infinity,
-                                height: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          AppTheme.surfaceColor,
-                                          AppTheme.cardColor,
-                                        ],
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Icon(Icons.broken_image, color: AppTheme.textSecondaryColor),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            // Type badge
-                            Positioned(
-                              top: 8,
-                              left: 8,
-                              child: Container(
-                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      AppTheme.accentColor,
-                                      AppTheme.accentColor.withOpacity(0.8),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                                  border: Border.all(
-                                    color: AppTheme.accentColor.withOpacity(0.3),
-                                    width: 1.5,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppTheme.accentColor.withOpacity(0.2),
-                                      blurRadius: 6,
-                                      spreadRadius: 0,
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  'KOMIK',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Gradient overlay for better text readability
-                            Positioned.fill(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.transparent,
-                                      Colors.transparent,
-                                      Colors.black.withOpacity(_isHovered ? 0.4 : 0.3),
-                                    ],
-                                    stops: [0.0, 0.5, 1.0],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Play button overlay on hover
-                            if (_isHovered)
-                              Positioned.fill(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: RadialGradient(
-                                      center: Alignment.center,
-                                      radius: 0.8,
-                                      colors: [
-                                        Colors.black.withOpacity(0.3),
-                                        Colors.transparent,
-                                      ],
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.menu_book,
-                                    color: Colors.white.withOpacity(0.9),
-                                    size: 40,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              manga['title'] ?? 'No Title',
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: _isHovered
-                                  ? AppTheme.accentColor.withOpacity(0.9)
-                                  : Colors.white,
-                                height: 1.2,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (manga['genres'] != null && manga['genres'].isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6.0),
-                                child: Text(
-                                  manga['genres'][0],
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.textSecondaryColor,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showFilterDialog() {
-    final List<int> years =
-        List.generate(10, (index) => DateTime.now().year - index);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardColor,
-        title: Text(
-          'Filter Results',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Container(
-          width: double.maxFinite,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SizedBox(height: 16),
+              // Header
+              _buildHeader(),
+              
+              const SizedBox(height: 24),
+              
+              // Custom Toggle
+              _buildToggleButtons(),
+              
+              const SizedBox(height: 24),
+
+              // Section Title
               Text(
-                'Year',
-                style: TextStyle(
-                  color: AppTheme.textSecondaryColor,
+                _currentTabIndex == 0 ? 'Latest Anime' : 'Latest Komik',
+                style: const TextStyle(
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
-              SizedBox(height: 8),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: selectedYear,
-                    isExpanded: true,
-                    dropdownColor: AppTheme.cardColor,
-                    style: TextStyle(color: Colors.white),
-                    icon: Icon(Icons.arrow_drop_down, color: Colors.white),
-                    items: years
-                        .map((year) => DropdownMenuItem(
-                              value: year,
-                              child: Text('$year'),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() => selectedYear = value!);
-                      Navigator.pop(context);
-                      _loadData();
-                    },
-                  ),
-                ),
+              
+              const SizedBox(height: 16),
+
+              // Content Grid
+              Expanded(
+                child: _buildContentGrid(),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                selectedYear = DateTime.now().year;
-              });
-              Navigator.pop(context);
-              _loadData();
-            },
-            child: Text(
-              'Reset Filters',
-              style: TextStyle(color: AppTheme.accentColor),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            if (widget.showBackButton) ...[
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 16),
+            ],
+            const Text(
+              'Explore',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToggleButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildToggleItem(
+            label: 'ANIME',
+            isActive: _currentTabIndex == 0,
+            onTap: () => setState(() => _currentTabIndex = 0),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildToggleItem(
+            label: 'KOMIK',
+            isActive: _currentTabIndex == 1,
+            onTap: () => setState(() => _currentTabIndex = 1),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToggleItem({required String label, required bool isActive, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? AppTheme.primaryColor : const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentGrid() {
+    if (isLoadingContent) {
+      return Center(child: CustomLoadingWidget(message: "Exploring content...", size: 100));
+    }
+
+    final items = _currentTabIndex == 0 ? latestAnime : latestComics;
+    
+    if (items.isEmpty) {
+      return Center(child: Text('Ga Ketemu Nih...', style: TextStyle(color: Colors.white)));
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8), // Padding handled by parent
+      physics: const BouncingScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.7, 
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return _buildCard(item);
+      },
+    );
+  }
+
+  Widget _buildCard(dynamic item) {
+    return GestureDetector(
+      onTap: () {
+         if (_currentTabIndex == 0) {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => AnimeDetailsScreen(url: item['url'])));
+         } else {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => ComicDetailsScreen(url: item['url'], type: item['type'])));
+         }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFF1E1E1E),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                   Image.network(
+                    item['image_url'] ?? '',
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (_,__,___) => Container(color: Colors.grey[800], child: Icon(Icons.broken_image, color: Colors.white)),
+                  ),
+                  if (_currentTabIndex == 1 && item['type'] != null)
+                    Positioned(
+                      top: 4,
+                      left: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 1))
+                          ],
+                        ),
+                        child: Text(
+                          (item['type'] as String).toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _loadData();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
+          const SizedBox(height: 8),
+          // Title
+          Text(
+            item['title'] ?? 'No Title',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
             ),
-            child: Text('Apply'),
           ),
         ],
       ),

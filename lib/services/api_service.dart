@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static String _baseUrl = 'http://172.236.143.121:5000';
+  static String _baseUrl = 'http://38.47.176.56:5000';
   static const String _prefsKeyApiBaseUrl = 'api_base_url';
   static bool _baseUrlLoaded = false;
 
@@ -265,8 +265,8 @@ class ApiService {
       );
       if (response['data'] != null) {
         final data = response['data'];
-        // Add type 'anime' to each item
-        return data.map((item) => {...item, 'type': 'anime'}).toList();
+        // Add category 'anime' to each item
+        return data.map((item) => {...item, 'category': 'anime', 'type': item['type'] ?? 'anime'}).toList();
       } else {
         throw ApiException('Invalid response format: missing data field');
       }
@@ -315,8 +315,8 @@ class ApiService {
       );
       if (response['data'] != null) {
         final data = response['data'];
-        // Add type 'comic' to each item
-        return data.map((item) => {...item, 'type': 'comic'}).toList();
+        // Add category 'comic' to each item
+        return data.map((item) => {...item, 'category': 'comic', 'type': item['type'] ?? 'comic'}).toList();
       } else {
         throw ApiException('Invalid response format: missing data field');
       }

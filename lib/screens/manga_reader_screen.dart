@@ -10,7 +10,10 @@ import '../widgets/custom_error_dialog.dart';
 import '../providers/app_state_provider.dart';
 import 'dart:convert';
 import '../services/api_service.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+
+import '../utils/toast_utils.dart';
+import '../widgets/custom_loading_widget.dart';
+
 
 class MangaReaderScreen extends StatefulWidget {
   final String? url;
@@ -37,7 +40,7 @@ class MangaReaderScreen extends StatefulWidget {
   _MangaReaderScreenState createState() => _MangaReaderScreenState();
 }
 
-class _MangaReaderScreenState extends State<MangaReaderScreen> {
+class _MangaReaderScreenState extends State<MangaReaderScreen> with SingleTickerProviderStateMixin {
   late PageController _pageController;
   bool _isDarkMode = true;
   bool _isMenuVisible = true;
@@ -59,6 +62,16 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
   String? _prevChapterUrl;
   String? _chapterListUrl;
 
+  // Scroll Controller for tap navigation
+  late ScrollController _scrollController;
+
+  // Global Zoom State
+  late TransformationController _transformationController;
+  late AnimationController _animationController;
+  Animation<Matrix4>? _animation;
+  TapDownDetails? _doubleTapDetails;
+  bool _canPan = false;
+
 
   @override
   void initState() {
@@ -70,6 +83,17 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
     ]);
     // Hide status bar for immersive reading experience
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+    
+    _scrollController = ScrollController(); // Init scroll controller
+    
+    _transformationController = TransformationController();
+    _animationController = AnimationController(
+       vsync: this,
+       duration: const Duration(milliseconds: 200),
+    )..addListener(() {
+       _transformationController.value = _animation!.value;
+       _updatePanState();
+    });
     _loadPreferences();
     // Inisialisasi URL navigasi
     _nextChapterUrl = widget.nextChapterUrl;
@@ -139,12 +163,13 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
       await appStateProvider.initialize();
       
       final historyItem = {
-        'title': chapter['title'],
+        'title': widget.title ?? chapter['title'], // Use Series title if available
         'image_url': widget.comicImageUrl ??
             chapter['cover_image'] ??
             'https://via.placeholder.com/150',
         'url': url,
-        'chapter': widget.chapterId ?? chapter['chapter_number'] ?? 'Unknown',
+        // Use chapter title (e.g. "Chapter 1") instead of number (e.g. "0") if possible
+        'chapter': chapter['title'] ?? widget.chapterId ?? chapter['chapter_number'] ?? 'Unknown',
         'type': 'comic',
       };
       
@@ -222,8 +247,74 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
     }
   }
 
+  void _handleTap(TapUpDetails details, BoxConstraints constraints) {
+    // If zoomed, simple toggle menu (or do nothing to avoid confusion)
+    if (_transformationController.value.getMaxScaleOnAxis() > 1.0) {
+       _toggleMenu();
+       return;
+    }
+
+    final double height = constraints.maxHeight;
+    final double tapY = details.localPosition.dy;
+    final double relativeY = tapY / height;
+
+    // Top 25%: Scroll Up
+    if (relativeY < 0.25) {
+      _scrollController.animateTo(
+        (_scrollController.offset - 300).clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    } 
+    // Bottom 25%: Scroll Down
+    else if (relativeY > 0.75) {
+       _scrollController.animateTo(
+        (_scrollController.offset + 300).clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+    // Middle 50%: Toggle Menu
+    else {
+      _toggleMenu();
+    }
+  }
+
   void _toggleMenu() {
-    setState(() => _isMenuVisible = !_isMenuVisible);
+     setState(() => _isMenuVisible = !_isMenuVisible);
+  }
+
+  void _updatePanState() {
+    final isZoomed = _transformationController.value.getMaxScaleOnAxis() > 1.0;
+    if (_canPan != isZoomed) {
+      setState(() {
+        _canPan = isZoomed;
+      });
+    }
+  }
+
+  void _handleDoubleTap() {
+    if (_animationController.isAnimating) return;
+
+    Matrix4 endMatrix;
+    Offset position = _doubleTapDetails != null
+        ? _doubleTapDetails!.localPosition
+        : Offset.zero;
+
+    if (_transformationController.value.getMaxScaleOnAxis() > 1.0) {
+      endMatrix = Matrix4.identity();
+    } else {
+      endMatrix = Matrix4.identity()
+        ..translate(-position.dx * 1.5, -position.dy * 1.5)
+        ..scale(2.5);
+    }
+
+    _animation = Matrix4Tween(
+      begin: _transformationController.value,
+      end: endMatrix,
+    ).animate(CurveTween(curve: Curves.easeOut).animate(_animationController));
+
+    _animationController.forward(from: 0);
   }
 
   void _showErrorDialog(String title, String message) {
@@ -285,18 +376,9 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
       return Scaffold(
         backgroundColor: _isDarkMode ? Colors.black : Colors.white,
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-              ),
-              SizedBox(height: 16),
-              Text('Loading chapter...',
-                  style: TextStyle(
-                      color: _isDarkMode ? Colors.white : Colors.black)),
-            ],
+          child: CustomLoadingWidget(
+            message: 'Loading chapter...',
+            color: AppTheme.primaryColor,
           ),
         ),
       );
@@ -306,22 +388,9 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
       return Scaffold(
         backgroundColor: _isDarkMode ? Colors.black : Colors.white,
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-                // Tampilkan progress preloading
-                value: _pages.isEmpty ? 0 : _preloadedCount / _pages.length,
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Preloading chapter... (${_preloadedCount}/${_pages.length})',
-                style:
-                    TextStyle(color: _isDarkMode ? Colors.white : Colors.black),
-              ),
-            ],
+          child: CustomLoadingWidget(
+            message: 'Preloading chapter... (${_preloadedCount}/${_pages.length})',
+            color: AppTheme.primaryColor,
           ),
         ),
       );
@@ -364,36 +433,66 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
     }
     return Scaffold(
       backgroundColor: _isDarkMode ? Colors.black : Colors.white,
-      body: GestureDetector(
-        onTap: _toggleMenu,
-        child: Stack(
-          children: [
-            _buildReader(),
-            if (_isMenuVisible) _buildMenu(),
-          ],
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            children: [
+              _buildReader(constraints),
+              IgnorePointer(
+                ignoring: !_isMenuVisible,
+                child: AnimatedOpacity(
+                  opacity: _isMenuVisible ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: _buildMenu(),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildReader() {
-    // Kembali menggunakan ListView untuk scrolling vertikal
-    return ListView.builder(
-      itemCount: _pages.length,
-      itemBuilder: (context, index) {
-        // Simpan halaman saat ini saat scrolling
-        if (index == 0) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            setState(() => _currentPage = index);
-            _saveCurrentPage();
-          });
-        }
-        return Container(
-          width: _screenWidth,
-          // Hapus batasan height agar gambar dapat ditampilkan penuh
-          child: _buildImageView(_pages[index], index),
-        );
-      },
+  Widget _buildReader(BoxConstraints screenConstraints) {
+    // Wrap entire reader in InteractiveViewer for global zoom
+    return GestureDetector(
+      onTapUp: (details) => _handleTap(details, screenConstraints), // Logic Tap Zone
+      onDoubleTapDown: (details) => _doubleTapDetails = details,
+      onDoubleTap: _handleDoubleTap,
+      child: InteractiveViewer(
+        transformationController: _transformationController,
+        minScale: 1.0,
+        maxScale: 3.0,
+        panEnabled: _canPan,
+        onInteractionEnd: (details) {
+           _updatePanState();
+        },
+        child: Container(
+          color: _isDarkMode ? Colors.black : Colors.white,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: ListView.builder(
+                controller: _scrollController, // Attach controller
+                // Disable list scrolling when panning/zoomed
+                physics: _canPan ? NeverScrollableScrollPhysics() : const AlwaysScrollableScrollPhysics(),
+                itemCount: _pages.length,
+                itemBuilder: (context, index) {
+                  // Simpan halaman saat ini saat scrolling
+                  if (index == 0) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      // Avoid setState during build if possible, but basic scroll tracking logic kept
+                      // _currentPage = index; 
+                    });
+                  }
+                  return _buildImageView(_pages[index], index);
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -401,39 +500,35 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
 
   Widget _buildImageView(String imageUrl, int index) {
     // Gunakan Image widget biasa dengan CachedNetworkImage untuk tampilan yang lebih baik
+    // Gunakan Custom ZoomableImage untuk interaksi zoom yang lebih baik
+    // Gunakan Custom ZoomableImage untuk interaksi zoom yang lebih baik
+    // Use standard CachedNetworkImage, as global zoom is handled by parent InteractiveViewer
     return CachedNetworkImage(
       imageUrl: imageUrl,
       cacheKey: 'manga_${_chapterId}_$index',
-      fit: BoxFit.contain,
-      width: _screenWidth,
-      // Biarkan height menyesuaikan dengan rasio gambar asli
-      placeholder: (context, url) => Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+      fit: BoxFit.fitWidth,
+      width: double.infinity,
+      alignment: Alignment.topCenter,
+      placeholder: (context, url) => Container(
+        height: 300,
+        child: Center(
+          child: CustomLoadingWidget(
+            message: '', // Hide text for individual images
+            size: 100, // Adjusted size
+          ),
         ),
       ),
-      errorWidget: (context, url, error) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error, color: Colors.red, size: 40),
-            SizedBox(height: 16),
-            Text(
-              'Failed to load image',
-              style:
-                  TextStyle(color: _isDarkMode ? Colors.white : Colors.black),
-            ),
-            SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  // Trigger reload
-                  _hasImageError = false;
-                });
-              },
-              child: Text('Retry'),
-            ),
-          ],
+      errorWidget: (context, url, error) => Container(
+        height: 300,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error, color: Colors.red, size: 40),
+              SizedBox(height: 16),
+              Text('Failed to load'),
+            ],
+          ),
         ),
       ),
     );
@@ -452,12 +547,9 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
         ),
       );
     } else {
-      Fluttertoast.showToast(
-        msg: 'Tidak ada chapter selanjutnya',
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
+      ToastUtils.show(
+        'Tidak ada chapter selanjutnya',
         backgroundColor: AppTheme.primaryColor,
-        textColor: Colors.white,
       );
     }
   }
@@ -475,12 +567,9 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
         ),
       );
     } else {
-      Fluttertoast.showToast(
-        msg: 'Ini adalah chapter pertama',
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
+      ToastUtils.show(
+        'Ini adalah chapter pertama',
         backgroundColor: AppTheme.primaryColor,
-        textColor: Colors.white,
       );
     }
   }
@@ -496,10 +585,127 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
   // Navigasi ke daftar chapter
   void _navigateToChapterList() {
     if (_chapterListUrl != null && _chapterListUrl!.isNotEmpty) {
-      Navigator.pop(context); // Kembali ke halaman detail komik
+       _showChapterListBottomSheet();
     } else {
       Navigator.pop(context); // Fallback ke halaman sebelumnya
     }
+  }
+
+  void _showChapterListBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[600],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Text(
+                    "Select Chapter",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: FutureBuilder<dynamic>(
+                    future: ApiService.fetchComicDetails(_chapterListUrl!),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                          ),
+                        );
+                      } else if (snapshot.hasError) {
+                        return Center(
+                          child: Text(
+                            'Failed to load chapters',
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        );
+                      } else if (snapshot.hasData) {
+                         final chapters = snapshot.data['chapters'] as List?;
+                         if (chapters == null || chapters.isEmpty) {
+                            return Center(
+                              child: Text(
+                                'No chapters found',
+                                style: TextStyle(color: Colors.white54),
+                              ),
+                            );
+                         }
+
+                         return ListView.builder(
+                           controller: scrollController,
+                           itemCount: chapters.length,
+                           itemBuilder: (context, index) {
+                             final chapter = chapters[index];
+                             final isCurrent = chapter['url'] == widget.url; // Basic check
+                             
+                             return ListTile(
+                               title: Text(
+                                 chapter['title'] ?? 'Chapter',
+                                 style: TextStyle(
+                                   color: isCurrent ? AppTheme.primaryColor : Colors.white,
+                                   fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                 ),
+                               ),
+                               trailing: isCurrent ? Icon(Icons.check, color: AppTheme.primaryColor, size: 16) : null,
+                               onTap: () {
+                                 Navigator.pop(context); // Close sheet
+                                 if (!isCurrent) {
+                                   Navigator.pushReplacement(
+                                     context,
+                                     MaterialPageRoute(
+                                       builder: (context) => MangaReaderScreen(
+                                         url: chapter['url'],
+                                         // Pass current comic info to keep context
+                                         title: widget.title, 
+                                         comicImageUrl: widget.comicImageUrl,
+                                         // Chapter ID might need update if available in list
+                                         chapterId: chapter['chapter_number']?.toString(), // Assuming API provides this
+                                         chapterListUrl: _chapterListUrl,
+                                       ),
+                                     ),
+                                   );
+                                 }
+                               },
+                             );
+                           },
+                         );
+                      }
+                      return const SizedBox();
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildMenu() {
@@ -579,6 +785,9 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
+    _transformationController.dispose();
+    _animationController.dispose();
     // Restore orientation to all orientations when leaving manga reader
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -591,3 +800,5 @@ class _MangaReaderScreenState extends State<MangaReaderScreen> {
     super.dispose();
   }
 }
+
+
