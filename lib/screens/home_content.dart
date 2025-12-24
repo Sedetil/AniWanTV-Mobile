@@ -8,7 +8,7 @@ import '../services/app_version_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_error_dialog.dart';
 import '../widgets/custom_loading_widget.dart';
-import '../widgets/update_dialog.dart';
+import '../widgets/update_bottom_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../services/ad_service.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';

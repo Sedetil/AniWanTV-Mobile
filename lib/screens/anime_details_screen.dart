@@ -494,10 +494,10 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> {
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          builder: (context) {
+          builder: (sheetContext) {
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 24),
-              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * 0.6),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
