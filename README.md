@@ -217,8 +217,8 @@ flutter build web --release
 
 ### App Configuration
 - **App Name**: AniWanTV
-- **Package Name**: `com.example.aniwantv`
-- **Version**: 1.0.0+1
+- **Package Name**: `com.streaming.aniwantv`
+- **Version**: 1.2.0+2
 
 ### AdMob Configuration
 - **App ID**: `ca-app-pub-7591838535085655~9508273019`
@@ -235,6 +235,24 @@ flutter build web --release
 - `REQUEST_INSTALL_PACKAGES`: APK installation permission
 
 ## 🔄 Pembaruan Terbaru
+
+### 🚀 Update v1.2.0 (Lottie & Interaksi)
+- **Lottie Loading Animation**: Implementasi animasi loading Lottie yang modern di seluruh aplikasi:
+  - Splash Screen (Layout baru dengan Logo + Animasi)
+  - Search Screen (Loading & Bottom Sheet)
+  - Video Player (Clean overlay tanpa text clutter)
+  - Manga Reader (Chapter loading & Image placeholders)
+  - Detail Screens (Anime & Comic)
+  - Explore Screen
+- **Enhanced Interactions**:
+  - Global Zoom & Pan di Manga Reader
+  - Interactive Tap Zones (Atas/Bawah scroll, Tengah menu/zoom)
+  - Layout fix untuk gambar dynamic aspect ratio
+- **UI Improvements**:
+  - Video Player Text Refinement ("Initializing..." & "Loading...")
+  - Menu Fade Animations
+  - History Display Refinement
+
 
 ### 📋 Bug Fixes & Improvements (v1.0.1)
 - [x] **Permission Handler Fix**: Memperbaiki `MissingPluginException` untuk permission_handler

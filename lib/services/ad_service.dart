@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+
 class AdService {
   static RewardedAd? _rewardedAd;
   static bool _isAdLoading = false;
@@ -12,7 +15,13 @@ class AdService {
   static const String _bannerBottomNav = 'ca-app-pub-7591838535085655/8350682205';
   static BannerAd? _bottomNavBanner;
 
+  static bool get isMobileAdsSupported {
+    if (kIsWeb) return false;
+    return Platform.isAndroid || Platform.isIOS;
+  }
+
   static Future<void> loadRewardedAd({bool forceReload = false}) async {
+    if (!isMobileAdsSupported) return;
     if (_isAdLoading && !forceReload) return;
 
     _isAdLoading = true;
@@ -50,6 +59,11 @@ class AdService {
     required VoidCallback onReward,
     bool setLandscapeOrientation = false,
   }) async {
+    if (!isMobileAdsSupported) {
+      onReward();
+      return;
+    }
+
     if (_rewardedAd == null || _isAdLoading) {
       try {
         await loadRewardedAd(forceReload: true);
@@ -123,6 +137,8 @@ class AdService {
   static const int _maxInterstitialLoadAttempts = 3;
 
   static Future<void> loadInterstitialAd() async {
+    if (!isMobileAdsSupported) return;
+
     await InterstitialAd.load(
       adUnitId: _interstitialAdUnitId,
       request: AdRequest(),
@@ -148,6 +164,11 @@ class AdService {
   static Future<void> showInterstitialAd({
     required VoidCallback onAdDismissed,
   }) async {
+    if (!isMobileAdsSupported) {
+      onAdDismissed();
+      return;
+    }
+
     if (_interstitialAd == null) {
       print('Warning: attempt to show interstitial before loaded.');
       onAdDismissed();
@@ -188,6 +209,8 @@ class AdService {
   }
 
   static Future<void> loadBottomNavBanner({VoidCallback? onLoaded}) async {
+    if (!isMobileAdsSupported) return;
+
     _bottomNavBanner?.dispose();
     _bottomNavBanner = BannerAd(
       adUnitId: _bannerBottomNav,

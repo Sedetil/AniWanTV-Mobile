@@ -10,7 +10,7 @@ import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppVersionService {
-  static String _baseUrl = 'http://159.223.42.28:5000/api/app_version';
+  static String _baseUrl = 'http://38.47.176.56:5000/api/app_version';
   static const String _prefsKeyAppVersionUrl = 'app_version_url';
   static bool _baseUrlLoaded = false;
 

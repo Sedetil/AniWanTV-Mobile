@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
+import 'package:lottie/lottie.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import 'landing_screen.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/ad_service.dart';
@@ -75,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => LoginScreen()),
+          MaterialPageRoute(builder: (context) => const LandingScreen()),
         );
       }
       return;
@@ -196,17 +198,13 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
               SizedBox(height: 48),
-              // Loading indicator
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: CircularProgressIndicator(
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-                  strokeWidth: 3,
-                ),
+              // Loading Animation
+              Lottie.asset(
+                'assets/animations/loading_animation.json',
+                width: 100,
+                height: 100,
+                fit: BoxFit.contain,
               ),
-              // Removed loading text for cleaner UI
             ],
           ),
         ),

@@ -8,12 +8,15 @@ import '../theme/app_theme.dart';
 import '../providers/app_state_provider.dart';
 import 'manga_reader_screen.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import '../utils/toast_utils.dart';
+import '../widgets/custom_loading_widget.dart';
+import '../services/ad_service.dart';
 
 class ComicDetailsScreen extends StatefulWidget {
   final String url;
+  final String? type; // Add type parameter to receive data from list screens
 
-  const ComicDetailsScreen({required this.url});
+  const ComicDetailsScreen({required this.url, this.type});
 
   @override
   State<ComicDetailsScreen> createState() => _ComicDetailsScreenState();
@@ -28,6 +31,9 @@ class _ComicDetailsScreenState extends State<ComicDetailsScreen> {
   bool _isAdLoading = false;
   int _adLoadAttempts = 0;
   static const int _maxAdLoadAttempts = 3;
+  
+  bool _isChapterSearching = false;
+  final TextEditingController _chapterSearchController = TextEditingController();
 
   @override
   void initState() {
@@ -35,10 +41,98 @@ class _ComicDetailsScreenState extends State<ComicDetailsScreen> {
     _loadComicData();
     _loadRewardedAd();
   }
+  
+  @override
+  void dispose() {
+    _rewardedAd?.dispose();
+    _chapterSearchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _loadComicData() async {
     try {
       final data = await ApiService.fetchComicDetails(widget.url);
+      
+      // Inject passed type if available and API type is generic or missing
+      if (widget.type != null) {
+         String apiType = (data['type'] ?? '').toString().toLowerCase();
+         if (apiType.isEmpty || apiType == 'comic') {
+            data['type'] = widget.type;
+         }
+      }
+      
+      // Smart Detection: fallback to checking Genres if type is still generic
+      String currentType = (data['type'] ?? '').toString().toLowerCase().trim();
+      
+      // If type is generic or empty, try to detect from genres or existing type string
+      if (currentType.isEmpty || currentType == 'comic') {
+         final genres = data['genres'] as List<dynamic>? ?? [];
+         bool found = false;
+         
+         for (var g in genres) {
+            final genre = g.toString().toLowerCase();
+            if (genre.contains('manhwa') || genre.contains('korea')) {
+               data['type'] = 'Manhwa';
+               found = true;
+               break;
+            } else if (genre.contains('manhua') || genre.contains('china')) {
+               data['type'] = 'Manhua';
+               found = true;
+               break;
+            } else if (genre.contains('manga') || genre.contains('japan')) {
+               data['type'] = 'Manga';
+               found = true;
+               break;
+            }
+         }
+         
+         // If still not found, check if "Webtoon" is in genres
+         if (!found) {
+             for (var g in genres) {
+                if (g.toString().toLowerCase().contains('webtoon')) {
+                   data['type'] = 'Manhwa';
+                   found = true;
+                   break;
+                }
+             }
+         }
+         
+         // If still not found, check URL (Strong indicator)
+         if (!found) {
+            final url = widget.url.toLowerCase();
+            if (url.contains('manhwa')) {
+               data['type'] = 'Manhwa';
+               found = true;
+            } else if (url.contains('manhua')) {
+               data['type'] = 'Manhua';
+               found = true;
+            } else if (url.contains('manga')) {
+               data['type'] = 'Manga';
+               found = true;
+            }
+         }
+         
+         // If still not found, check Title
+         if (!found && data['title'] != null) {
+            final title = data['title'].toString().toLowerCase();
+            if (title.contains('manhwa')) {
+               data['type'] = 'Manhwa';
+               found = true;
+            } else if (title.contains('manhua')) {
+               data['type'] = 'Manhua';
+               found = true;
+            } else if (title.contains('manga')) {
+               data['type'] = 'Manga';
+               found = true;
+            }
+         }
+      } else {
+         // If type is present but maybe lowercase or unformatted, capitalize properly
+         if (currentType.contains('manhwa')) data['type'] = 'Manhwa';
+         else if (currentType.contains('manhua')) data['type'] = 'Manhua';
+         else if (currentType.contains('manga')) data['type'] = 'Manga';
+      }
+
       setState(() {
         _comicData = data;
         _isLoading = false;
@@ -52,6 +146,9 @@ class _ComicDetailsScreenState extends State<ComicDetailsScreen> {
   }
 
   Future<void> _loadRewardedAd({bool forceReload = false}) async {
+    // Check global support first
+    if (!AdService.isMobileAdsSupported) return;
+    
     if (_isAdLoading && !forceReload) return;
 
     setState(() {
@@ -65,6 +162,10 @@ class _ComicDetailsScreenState extends State<ComicDetailsScreen> {
       request: AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (RewardedAd ad) {
+          if (!mounted) {
+            ad.dispose();
+            return;
+          }
           setState(() {
             _rewardedAd = ad;
             _isAdLoading = false;
@@ -73,6 +174,7 @@ class _ComicDetailsScreenState extends State<ComicDetailsScreen> {
           print('RewardedAd loaded successfully');
         },
         onAdFailedToLoad: (LoadAdError error) async {
+          if (!mounted) return;
           setState(() {
             _rewardedAd = null;
             _isAdLoading = false;
@@ -82,11 +184,15 @@ class _ComicDetailsScreenState extends State<ComicDetailsScreen> {
           if (_adLoadAttempts < _maxAdLoadAttempts) {
             print('Retrying to load ad... Attempt ${_adLoadAttempts + 1}');
             await Future.delayed(Duration(seconds: 2)); // Delay sebelum retry
-            await _loadRewardedAd(forceReload: true);
+            if (mounted) {
+               await _loadRewardedAd(forceReload: true);
+            }
           } else {
-            setState(() {
-              _adLoadAttempts = 0;
-            });
+            if (mounted) {
+              setState(() {
+                _adLoadAttempts = 0;
+              });
+            }
           }
         },
       ),
@@ -95,6 +201,13 @@ class _ComicDetailsScreenState extends State<ComicDetailsScreen> {
 
   Future<void> _showRewardedAd(
       BuildContext context, VoidCallback onReward) async {
+    
+    // Bypass ads on unsupported platforms
+    if (!AdService.isMobileAdsSupported) {
+      onReward();
+      return;
+    }
+
     // Pastikan iklan dimuat ulang setiap kali showRewardedAd dipanggil
     if (_rewardedAd == null || _isAdLoading) {
       try {
@@ -156,1629 +269,617 @@ class _ComicDetailsScreenState extends State<ComicDetailsScreen> {
     }
   }
 
-  String? _cleanSynopsis(String? synopsis) {
-    if (synopsis == null) return null;
-    return synopsis.replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: Colors.black,
       body: _isLoading
-          ? _buildLoadingView()
+          ? const Center(child: CustomLoadingWidget(message: "Loading comic details...", size: 100))
           : _error != null
-              ? _buildErrorView()
+              ? Center(child: Text('Error: $_error', style: const TextStyle(color: Colors.white)))
               : _comicData == null
-                  ? _buildNoDataView()
-                  : _buildComicDetailsView(),
+                  ? const Center(child: Text('No data found', style: TextStyle(color: Colors.white)))
+                  : SafeArea(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeader(context, _comicData!),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildInfo(context, _comicData!),
+                                  const SizedBox(height: 16),
+                                  _buildActionButtons(context, _comicData!),
+                                  const SizedBox(height: 24),
+                                  _buildChaptersList(context, _comicData!),
+                                  const SizedBox(height: 32),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
     );
   }
 
-  Widget _buildLoadingView() {
-    return const Center(
+  Widget _buildHeader(BuildContext context, Map<String, dynamic> comic) {
+    return Stack(
+      children: [
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Image.network(
+            comic['image_url'] ?? '',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(color: Colors.grey[900]),
+          ),
+        ),
+        // Gradient overlay
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.4),
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.6),
+                  Colors.black,
+                ],
+                stops: const [0.0, 0.3, 0.8, 1.0],
+              ),
+            ),
+          ),
+        ),
+        // Back Button
+        Positioned(
+          top: 16,
+          left: 16,
+          child: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfo(BuildContext context, Map<String, dynamic> comic) {
+    final chapters = comic['chapters'] as List<dynamic>? ?? [];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          comic['title'] ?? 'No Title',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Text(
+              comic['year'] ?? '2022', // Assuming year data or placeholder
+              style: TextStyle(color: Colors.grey[400], fontSize: 13),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.grey[800],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                '16+', // Hardcoded rating
+                style: TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${chapters.length} Chapters',
+              style: TextStyle(color: Colors.grey[400], fontSize: 13),
+            ),
+             const SizedBox(width: 8),
+             const Icon(Icons.star, size: 14, color: Colors.amber),
+             const SizedBox(width: 4),
+             Text(
+               comic['rating']?.toString() ?? 'N/A',
+               style: TextStyle(color: Colors.grey[400], fontSize: 13),
+             ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _ExpandableDetails(comic: comic),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context, Map<String, dynamic> comic) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                   // Read first chapter (which is typically the last in the list for manga sites, or first if reversed)
+                   // The API usually returns latest first. So we might want the last index.
+                   // But logic depends on source. Let's assume we want the "First Chapter" which might appear last in list.
+                   final chapters = comic['chapters'] as List<dynamic>? ?? [];
+                   if (chapters.isNotEmpty) {
+                      final firstChapter = chapters.last; // Assuming list is descending
+                       _showRewardedAd(context, () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MangaReaderScreen(
+                              url: firstChapter['url'],
+                              comicImageUrl: comic['image_url'],
+                              title: firstChapter['title'],
+                              chapterId: '1', // Simplified
+                            ),
+                          ),
+                        );
+                      });
+                   }
+                },
+                label: const Text('Read Ch1', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF393053),
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFF6F4FA4)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                   ToastUtils.show('Download functionality coming soon', backgroundColor: AppTheme.primaryColor);
+                },
+                icon: const Icon(Icons.download, color: Colors.white),
+                label: const Text('Download', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[800],
+                   padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+             _FavoriteIconAction(comic: comic, url: widget.url),
+             _buildIconAction(Icons.thumb_up_alt_outlined, 'Like', () {
+               ToastUtils.show('Like functionality is simulated', backgroundColor: Colors.green);
+             }),
+             _buildIconAction(Icons.share, 'Share', () {
+               ToastUtils.show('Share functionality coming soon', backgroundColor: AppTheme.primaryColor);
+             }),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildIconAction(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _AnimatedLoadingIcon(),
-          SizedBox(height: 24),
-          _AnimatedLoadingText(),
+          Icon(icon, color: Colors.white, size: 24),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 10)),
         ],
       ),
     );
   }
 
-  Widget _buildErrorView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const _AnimatedErrorIcon(),
-          const SizedBox(height: 24),
-          _AnimatedErrorText(error: _error ?? 'Unknown error'),
-          const SizedBox(height: 24),
-          const _GoBackButton(),
-        ],
-      ),
-    );
-  }
+  Widget _buildChaptersList(BuildContext context, Map<String, dynamic> comic) {
+    final chapters = comic['chapters'] as List<dynamic>? ?? [];
+    
+    // Filter chapters
+    final filteredChapters = chapters.where((ch) {
+      if (_searchQuery.isEmpty) return true;
+      final title = ch['title']?.toString().toLowerCase() ?? '';
+      final query = _searchQuery.toLowerCase();
+      return title.contains(query);
+    }).toList();
 
-  Widget _buildNoDataView() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _AnimatedNoDataIcon(),
-          SizedBox(height: 24),
-          _AnimatedNoDataText(),
-          SizedBox(height: 24),
-          _GoBackButton(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildComicDetailsView() {
-    final comic = _comicData;
-    if (comic == null) {
-      return _buildNoDataView();
-    }
-
-    return CustomScrollView(
-      slivers: [
-        _ComicSliverAppBar(comic: comic, url: widget.url),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _AnimatedInfoCard(comic: comic),
-                const SizedBox(height: 24),
-                if (comic['alternative_titles'] != null &&
-                    (comic['alternative_titles'] as List).isNotEmpty)
-                  _AnimatedAlternativeTitlesSection(comic: comic),
-                _AnimatedSynopsisSection(comic: comic),
-                const SizedBox(height: 24),
-                _AnimatedChaptersHeader(comic: comic),
-                const SizedBox(height: 16),
-                _AnimatedSearchField(
-                  searchQuery: _searchQuery,
+    return Column(
+      children: [
+        if (_isChapterSearching)
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _chapterSearchController,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Search chapter...',
+                    hintStyle: TextStyle(color: Colors.grey[600]),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    filled: true,
+                    fillColor: Colors.grey[900],
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide.none),
+                  ),
                   onChanged: (value) {
                     setState(() {
                       _searchQuery = value;
                     });
                   },
                 ),
-                const SizedBox(height: 16),
-                _AnimatedChaptersList(
-                  comic: comic,
-                  searchQuery: _searchQuery,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isChapterSearching = false;
+                    _searchQuery = '';
+                    _chapterSearchController.clear();
+                  });
+                },
+                child: const Text('Cancel', style: TextStyle(color: AppTheme.primaryColor)),
+              ),
+            ],
+          )
+        else
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+                Row(
+                 children: [
+                    const Text(
+                      'Chapters',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isChapterSearching = true;
+                        });
+                      },
+                      child: Icon(Icons.search, color: Colors.grey[400], size: 20),
+                    ),
+                 ],
+               ),
+            ],
           ),
+        const SizedBox(height: 16),
+        if (filteredChapters.isEmpty)
+           Padding(
+             padding: const EdgeInsets.all(16.0),
+             child: Text('No chapters found', style: TextStyle(color: Colors.grey[500])),
+           )
+        else
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: filteredChapters.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 16),
+          itemBuilder: (context, index) {
+            final chapter = filteredChapters[index];
+            final originalIndex = chapters.indexOf(chapter);
+            
+            // Try to extract chapter number from title
+            String title = chapter['title'] ?? 'Chapter ?';
+            String displayTitle = title;
+            
+            return GestureDetector(
+              onTap: () {
+                 _showRewardedAd(context, () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MangaReaderScreen(
+                          url: chapter['url'],
+                          comicImageUrl: comic['image_url'],
+                          title: title,
+                          chapterId: '$index',
+                        ),
+                      ),
+                    );
+                 });
+              },
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Thumbnail (using comic image as fallback)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Image.network(
+                      comic['image_url'] ?? '',
+                      width: 120,
+                      height: 68,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_,__,___) => Container(width: 120, height: 68, color: Colors.grey[800]),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 4),
+                        Text(
+                          displayTitle,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        // You could add release date here if available
+                        Text(
+                           chapter['update_time'] ?? chapter['date'] ?? '',
+                           style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.download_for_offline_outlined, color: Colors.grey[400], size: 20),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
   }
-
-  @override
-  void dispose() {
-    _rewardedAd?.dispose();
-    super.dispose();
-  }
 }
 
-// --- Helper Widgets ---
-
-class _AnimatedLoadingIcon extends StatelessWidget {
-  const _AnimatedLoadingIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.8, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      builder: (context, value, _) {
-        return Transform.scale(
-          scale: value,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                colors: [
-                  AppTheme.primaryColor.withOpacity(0.15),
-                  AppTheme.primaryColor.withOpacity(0.05),
-                  Colors.transparent,
-                ],
-                stops: const [0.0, 0.7, 1.0],
-              ),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppTheme.primaryColor.withOpacity(0.4),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryColor.withOpacity(0.4),
-                  blurRadius: 30,
-                  spreadRadius: 2,
-                ),
-                BoxShadow(
-                  color: AppTheme.primaryColor.withOpacity(0.2),
-                  blurRadius: 60,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: Icon(
-              Icons.menu_book,
-              size: 80,
-              color: AppTheme.primaryColor,
-              shadows: [
-                Shadow(
-                  color: AppTheme.primaryColor.withOpacity(0.5),
-                  blurRadius: 10,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedLoadingText extends StatelessWidget {
-  const _AnimatedLoadingText();
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 1000),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Text(
-              'Loading...',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.5,
-                  ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedErrorIcon extends StatelessWidget {
-  const _AnimatedErrorIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.8, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      builder: (context, value, _) {
-        return Transform.scale(
-          scale: value,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                colors: [
-                  AppTheme.errorColor.withOpacity(0.15),
-                  AppTheme.errorColor.withOpacity(0.05),
-                  Colors.transparent,
-                ],
-                stops: const [0.0, 0.7, 1.0],
-              ),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppTheme.errorColor.withOpacity(0.4),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.errorColor.withOpacity(0.4),
-                  blurRadius: 30,
-                  spreadRadius: 2,
-                ),
-                BoxShadow(
-                  color: AppTheme.errorColor.withOpacity(0.2),
-                  blurRadius: 60,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: Icon(
-              Icons.error_outline,
-              size: 80,
-              color: AppTheme.errorColor,
-              shadows: [
-                Shadow(
-                  color: AppTheme.errorColor.withOpacity(0.5),
-                  blurRadius: 10,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedErrorText extends StatelessWidget {
-  final String error;
-  const _AnimatedErrorText({required this.error});
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 1000),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Text(
-              'Error: $error',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.5,
-                  ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedNoDataIcon extends StatelessWidget {
-  const _AnimatedNoDataIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.8, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      builder: (context, value, _) {
-        return Transform.scale(
-          scale: value,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                colors: [
-                  Colors.amber.withOpacity(0.15),
-                  Colors.amber.withOpacity(0.05),
-                  Colors.transparent,
-                ],
-                stops: const [0.0, 0.7, 1.0],
-              ),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.amber.withOpacity(0.4),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.amber.withOpacity(0.4),
-                  blurRadius: 30,
-                  spreadRadius: 2,
-                ),
-                BoxShadow(
-                  color: Colors.amber.withOpacity(0.2),
-                  blurRadius: 60,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.warning,
-              size: 80,
-              color: Colors.amber,
-              shadows: [
-                Shadow(
-                  color: Colors.amber,
-                  blurRadius: 10,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedNoDataText extends StatelessWidget {
-  const _AnimatedNoDataText();
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 1000),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Text(
-              'No data found for this comic',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.5,
-                  ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _GoBackButton extends StatelessWidget {
-  const _GoBackButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool isHovered = false;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => isHovered = true),
-          onExit: (_) => setState(() => isHovered = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()..scale(isHovered ? 1.05 : 1.0),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isHovered
-                    ? AppTheme.primaryColor.withOpacity(0.9)
-                    : AppTheme.primaryColor,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                ),
-                elevation: isHovered ? 8 : 4,
-                shadowColor: AppTheme.primaryColor.withOpacity(0.3),
-              ),
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Go Back'),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ComicSliverAppBar extends StatelessWidget {
+class _FavoriteIconAction extends StatefulWidget {
   final Map<String, dynamic> comic;
   final String url;
-  const _ComicSliverAppBar({required this.comic, required this.url});
+  const _FavoriteIconAction({required this.comic, required this.url});
 
   @override
+  State<_FavoriteIconAction> createState() => _FavoriteIconActionState();
+}
+
+class _FavoriteIconActionState extends State<_FavoriteIconAction> {
+  @override
   Widget build(BuildContext context) {
-    return SliverAppBar(
-      expandedHeight: 300.0,
-      floating: false,
-      pinned: true,
-      backgroundColor: AppTheme.backgroundColor,
-      actions: [_ShareButton(), _FavoriteButton(comic: comic, url: url)],
-      flexibleSpace: FlexibleSpaceBar(
-        titlePadding:
-            const EdgeInsets.only(left: 60.0, bottom: 16.0, right: 120.0),
-        title: _AnimatedAppBarTitle(title: comic['title']),
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.network(
-              comic['image_url'] ?? '',
-              fit: BoxFit.cover,
-              errorBuilder: (context, _, __) => Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppTheme.surfaceColor, AppTheme.cardColor],
-                  ),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.broken_image,
-                    size: 50,
-                    color: AppTheme.textSecondaryColor,
-                  ),
-                ),
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
-                ),
-              ),
-            ),
-          ],
-        ),
+    final appStateProvider = Provider.of<AppStateProvider>(context);
+    final isFavorited = appStateProvider.favoriteComics.any((item) => item['url'] == widget.url);
+    
+    return GestureDetector(
+      onTap: () async {
+         try {
+            final provider = Provider.of<AppStateProvider>(context, listen: false);
+            if (isFavorited) {
+               final items = provider.favoriteComics.where((x) => x['url'] == widget.url).toList();
+               if(items.isNotEmpty) {
+                 await provider.removeFromFavorites(items.first['id'], false);
+                 ToastUtils.show('Removed from My List', backgroundColor: Colors.red);
+               }
+            } else {
+               await provider.addToFavorites({
+                  'title': widget.comic['title'] ?? 'No Title',
+                  'image_url': widget.comic['image_url'] ?? '',
+                  'url': widget.url,
+                  'rating': widget.comic['rating'],
+                  'type': widget.comic['type'],
+                  'genres': widget.comic['genres'],
+               }, false);
+               ToastUtils.show('Added to My List', backgroundColor: Colors.green);
+            }
+            // Force rebuild is handled by Provider listener usually, but here we depend on parent rebuild or local state
+            // Ideally rely on consumer/provider updates. The parent build method fetches `isFavorited` from provider.
+         } catch (e) {
+            ToastUtils.show('Error: $e', backgroundColor: Colors.red);
+         }
+      },
+      child: Column(
+        children: [
+          Icon(isFavorited ? Icons.check : Icons.add, color: Colors.white, size: 24),
+          const SizedBox(height: 4),
+          Text('My List', style: TextStyle(color: Colors.grey[400], fontSize: 10)),
+        ],
       ),
     );
   }
 }
 
-class _ShareButton extends StatelessWidget {
-  const _ShareButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool isHovered = false;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => isHovered = true),
-          onExit: (_) => setState(() => isHovered = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()..scale(isHovered ? 1.1 : 1.0),
-            child: IconButton(
-              icon: const Icon(Icons.share),
-              onPressed: () {
-                Fluttertoast.showToast(
-                  msg: 'Share functionality coming soon',
-                  toastLength: Toast.LENGTH_SHORT,
-                  gravity: ToastGravity.BOTTOM,
-                  backgroundColor: AppTheme.primaryColor,
-                  textColor: Colors.white,
-                );
-              },
-              tooltip: 'Share',
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _FavoriteButton extends StatelessWidget {
+class _ExpandableDetails extends StatefulWidget {
   final Map<String, dynamic> comic;
-  final String url;
-  const _FavoriteButton({required this.comic, required this.url});
+  const _ExpandableDetails({required this.comic});
 
   @override
-  Widget build(BuildContext context) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool isHovered = false;
-        final appStateProvider = Provider.of<AppStateProvider>(context);
-        final isFavorited =
-            appStateProvider.favoriteComics.any((item) => item['url'] == url);
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => isHovered = true),
-          onExit: (_) => setState(() => isHovered = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()..scale(isHovered ? 1.1 : 1.0),
-            child: IconButton(
-              icon: Icon(isFavorited ? Icons.bookmark : Icons.bookmark_border,
-                  color: isFavorited ? AppTheme.accentColor : null),
-              onPressed: () async {
-                try {
-                  final appStateProvider =
-                      Provider.of<AppStateProvider>(context, listen: false);
-                  await appStateProvider.initialize();
-                  final existing = appStateProvider.favoriteComics
-                      .where((item) => item['url'] == url)
-                      .toList();
-                  if (existing.isNotEmpty) {
-                    final id = existing.first['id']?.toString() ?? '';
-                    if (id.isNotEmpty) {
-                      await appStateProvider.removeFromFavorites(id, false);
-                      Fluttertoast.showToast(
-                        msg: 'Removed from favorites',
-                        toastLength: Toast.LENGTH_SHORT,
-                        gravity: ToastGravity.BOTTOM,
-                        backgroundColor: Colors.red,
-                        textColor: Colors.white,
-                      );
-                      setState(() {});
-                      return;
-                    }
-                  }
-
-                  await appStateProvider.addToFavorites({
-                    'title': comic['title'] ?? 'No Title',
-                    'image_url': comic['image_url'] ?? '',
-                    'url': url,
-                    'description': comic['synopsis'] != null
-                        ? '${comic['synopsis'].substring(0, min<int>(100, comic['synopsis'].length))}...'
-                        : 'No description available',
-                    'rating': comic['rating'],
-                  }, false);
-
-                  Fluttertoast.showToast(
-                    msg: 'Added to favorites',
-                    toastLength: Toast.LENGTH_SHORT,
-                    gravity: ToastGravity.BOTTOM,
-                    backgroundColor: Colors.green,
-                    textColor: Colors.white,
-                  );
-                  setState(() {});
-                } catch (e) {
-                  Fluttertoast.showToast(
-                    msg: 'Error adding to favorites: $e',
-                    toastLength: Toast.LENGTH_LONG,
-                    gravity: ToastGravity.BOTTOM,
-                    backgroundColor: Colors.red,
-                    textColor: Colors.white,
-                  );
-                }
-              },
-              tooltip: 'Add to Favorites',
-            ),
-          ),
-        );
-      },
-    );
-  }
+  State<_ExpandableDetails> createState() => _ExpandableDetailsState();
 }
 
-class _AnimatedAppBarTitle extends StatelessWidget {
-  final String title;
-  const _AnimatedAppBarTitle({required this.title});
+class _ExpandableDetailsState extends State<_ExpandableDetails> {
+  bool _isExpanded = false;
 
   @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-                shadows: [
-                  Shadow(
-                    blurRadius: 10.0,
-                    color: Colors.black54,
-                    offset: Offset(2.0, 2.0),
-                  ),
-                ],
-              ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
-          ),
-        );
-      },
-    );
+  String _cleanSynopsis(String text) {
+    if (text.isEmpty) return '';
+    // Replace sequences of whitespace (including newlines and tabs) with a single space
+    // BUT we want to preserve paragraph breaks if they are genuine.
+    // The user input shows: "Manhwa ... bernama\n                    Legobalbasseo"
+    // Ideally we want "Manhwa ... bernama Legobalbasseo" if it's not a real paragraph,
+    // OR we just want to strip the indentation after the newline.
+
+    // Strategy 1: Remove all newlines and excess spaces, treating it as one block (if that's desired).
+    // Strategy 2 (Better for reading): Normalise spacing.
+    // 1. Replace multiple spaces with single space.
+    // 2. Remove spaces after newlines.
+    
+    // Let's go with a robust approach:
+    // Replace newline chars with a placeholder if they are double, or just space?
+    // Often comic synopsis are scraped and have weird formatting. 
+    // Let's try to preserve double newlines as paragraphs, but unwanted single newlines inside sentences might need to be joined?
+    // Given the user example "bernama\n                    Legobalbasseo", this looks like a line wrap that should be a space.
+    // However, "Vikir.\n\nHadiah" looks like a paragraph break.
+    
+    // 1. Trim the whole text
+    var clean = text.trim();
+    
+    // 2. Replace multiple spaces/tabs with single space (excluding newlines for now)
+    clean = clean.replaceAll(RegExp(r'[ \t]+'), ' ');
+    
+    // 3. Handle newlines. 
+    //    If we have \n\n (or more), it's likely a paragraph break.
+    //    If we have \n followed by spaces, it might be just bad formatting or a soft break.
+    //    Let's normalize all newline sequences to \n first.
+    clean = clean.replaceAll(RegExp(r'\s*\n\s*'), '\n');
+    
+    //    Now we have condensed newlines. "text\ntext" or "text\n\ntext".
+    //    We can check if it looks like a list or specific break. 
+    //    For safety in a mobile view, often converting single \n to space is safer for flow, 
+    //    unless it's a double \n.
+    
+    //    Let's try: Replace single \n with space, keep double \n.
+    //    BUT, we need to temporarily hide double newlines.
+    clean = clean.replaceAll('\n\n', '<PARAGRAPH_BREAK>');
+    clean = clean.replaceAll('\n', ' '); // Join single lines
+    clean = clean.replaceAll('<PARAGRAPH_BREAK>', '\n\n');
+    
+    return clean.trim();
   }
-}
-
-class _AnimatedInfoCard extends StatelessWidget {
-  final Map<String, dynamic> comic;
-  const _AnimatedInfoCard({required this.comic});
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 1000),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [AppTheme.surfaceColor, AppTheme.cardColor],
-                ),
-                borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                boxShadow: AppTheme.mediumShadow,
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.05),
-                  width: 1.2,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Builder(
-                      builder: (context) {
-                        final altTitles =
-                            (comic['alternative_titles'] as List?) ?? [];
-                        return Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _InfoPill(
-                              icon: Icons.star,
-                              text: comic['rating']?.toString() ?? 'N/A',
-                              iconColor: Colors.amber,
-                            ),
-                            if (comic['type'] != null)
-                              _InfoPill(
-                                icon: Icons.category,
-                                text: comic['type'].toString(),
-                              ),
-                            if (comic['status'] != null)
-                              _InfoPill(
-                                icon: Icons.info_outline,
-                                text: comic['status'].toString(),
-                              ),
-                            if (comic['demographic'] != null)
-                              _InfoPill(
-                                icon: Icons.group,
-                                text: comic['demographic'].toString(),
-                              ),
-                            if (comic['author'] != null)
-                              _InfoPill(
-                                icon: Icons.person,
-                                text: comic['author'].toString(),
-                              ),
-                            if (comic['illustrator'] != null)
-                              _InfoPill(
-                                icon: Icons.brush,
-                                text: comic['illustrator'].toString(),
-                              ),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    _GenresChips(genres: comic['genres'] ?? []),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String infoValue;
-  final IconData icon;
-  final Color iconColor;
-  const _InfoRow({
-    required this.label,
-    required this.infoValue,
-    required this.icon,
-    required this.iconColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeOut,
-      builder: (context, animationValue, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - animationValue)),
-          child: Opacity(
-            opacity: animationValue,
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.40,
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.08),
-                    Colors.white.withOpacity(0.03),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.15),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            colors: [
-                              iconColor.withOpacity(0.3),
-                              iconColor.withOpacity(0.1),
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: iconColor.withOpacity(0.4),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Icon(icon, color: iconColor, size: 18),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          label,
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    letterSpacing: 0.5,
-                                  ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    infoValue,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _InfoPill extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color? iconColor;
-  const _InfoPill({required this.icon, required this.text, this.iconColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 180),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppTheme.primaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppTheme.primaryColor.withOpacity(0.3),
-            width: 1.2,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: iconColor ?? AppTheme.primaryColor),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GenresChips extends StatelessWidget {
-  final List<dynamic> genres;
-  const _GenresChips({required this.genres});
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 1000),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            AppTheme.primaryColor.withOpacity(0.2),
-                            AppTheme.primaryColor.withOpacity(0.1),
-                          ],
-                        ),
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusSmall),
-                        border: Border.all(
-                          color: AppTheme.primaryColor.withOpacity(0.3),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.category,
-                        color: AppTheme.primaryColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Genres',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10.0,
-                  runSpacing: 10.0,
-                  children: genres.asMap().entries.map((entry) {
-                    int index = entry.key;
-                    String genre = entry.value.toString();
-                    Color genreColor =
-                        Colors.primaries[index % Colors.primaries.length];
-                    return _GenreChip(genre: genre, color: genreColor);
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _GenreChip extends StatelessWidget {
-  final String genre;
-  final Color color;
-  const _GenreChip({required this.genre, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool isHovered = false;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => isHovered = true),
-          onExit: (_) => setState(() => isHovered = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()..scale(isHovered ? 1.05 : 1.0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    color.withOpacity(0.3),
-                    color.withOpacity(0.1),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                border: Border.all(
-                  color: isHovered
-                      ? color.withOpacity(0.6)
-                      : color.withOpacity(0.3),
-                  width: isHovered ? 2 : 1.5,
-                ),
-                boxShadow: isHovered
-                    ? [
-                        BoxShadow(
-                          color: color.withOpacity(0.4),
-                          blurRadius: 8,
-                          spreadRadius: 0,
-                        ),
-                      ]
-                    : [
-                        BoxShadow(
-                          color: color.withOpacity(0.2),
-                          blurRadius: 6,
-                          spreadRadius: 0,
-                        ),
-                      ],
-              ),
-              child: Text(
-                genre,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedAlternativeTitlesSection extends StatelessWidget {
-  final Map<String, dynamic> comic;
-  const _AnimatedAlternativeTitlesSection({required this.comic});
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 1200),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Alternative Titles',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.glassGradient,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1.2,
-                    ),
-                    boxShadow: AppTheme.subtleShadow,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Wrap(
-                      spacing: 8.0,
-                      runSpacing: 8.0,
-                      children: (comic['alternative_titles'] as List? ??
-                              [
-                                "Best Devil Housekeeper",
-                                "Demon Emperor Butler",
-                                "Demon Emperor Great Butler",
-                                "Demon Emperor Housekeeper",
-                                "Housekeeper is the Magic Emperor",
-                                "Demonic Emperor",
-                                "Mo Huang Da Guan Jia",
-                                "The Steward demonic emperor",
-                                "Как демон-император стал дворецким",
-                                "魔皇大管家"
-                              ])
-                          .map((title) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color:
-                                        AppTheme.primaryColor.withOpacity(0.3),
-                                  ),
-                                ),
-                                child: Text(
-                                  title.toString(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ))
-                          .toList(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedSynopsisSection extends StatelessWidget {
-  final Map<String, dynamic> comic;
-  const _AnimatedSynopsisSection({required this.comic});
-
-  @override
-  Widget build(BuildContext context) {
-    String? _cleanSynopsis(String? synopsis) {
-      if (synopsis == null) return null;
-      return synopsis.replaceAll(RegExp(r'\s+'), ' ').trim();
-    }
-
+    final synopsis = _cleanSynopsis(widget.comic['synopsis'] ?? '');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 1400),
-          curve: Curves.easeOut,
-          builder: (context, value, _) {
-            return Transform.translate(
-              offset: Offset(0, 20 * (1 - value)),
-              child: Opacity(
-                opacity: value,
-                child: const Text(
-                  'Synopsis',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
+        AnimatedCrossFade(
+          firstChild: Text(
+            synopsis,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: Colors.grey[300], fontSize: 13, height: 1.4),
+          ),
+          secondChild: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                synopsis,
+                style: TextStyle(color: Colors.grey[300], fontSize: 13, height: 1.4),
               ),
-            );
-          },
+              const SizedBox(height: 16),
+              _buildDetailGrid(),
+            ],
+          ),
+          crossFadeState: _isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 300),
         ),
         const SizedBox(height: 8),
-        TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 1600),
-          curve: Curves.easeOut,
-          builder: (context, value, _) {
-            return Transform.translate(
-              offset: Offset(0, 20 * (1 - value)),
-              child: Opacity(
-                opacity: value,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.glassGradient,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1.2,
-                    ),
-                    boxShadow: AppTheme.subtleShadow,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      _cleanSynopsis(comic['synopsis']) ??
-                          'No synopsis available',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        height: 1.5,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _isExpanded = !_isExpanded;
+            });
+          },
+          child: Row(
+            children: [
+              Text(
+                _isExpanded ? 'Show Less' : 'Show More',
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
               ),
-            );
-          },
+              const SizedBox(width: 4),
+              Icon(
+                _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                color: Colors.grey,
+                size: 16,
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
-}
 
-class _AnimatedChaptersHeader extends StatelessWidget {
-  final Map<String, dynamic> comic;
-  const _AnimatedChaptersHeader({required this.comic});
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 1800),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Chapters',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-                StatefulBuilder(
-                  builder: (context, setState) {
-                    bool isHovered = false;
-                    return MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      onEnter: (_) => setState(() => isHovered = true),
-                      onExit: (_) => setState(() => isHovered = false),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        transform: Matrix4.identity()
-                          ..scale(isHovered ? 1.05 : 1.0),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isHovered
-                                ? AppTheme.primaryColor.withOpacity(0.9)
-                                : AppTheme.primaryColor,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: isHovered
-                                ? [
-                                    BoxShadow(
-                                      color: AppTheme.primaryColor
-                                          .withOpacity(0.5),
-                                      blurRadius: 20,
-                                      spreadRadius: 0,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.4),
-                                      blurRadius: 12,
-                                      spreadRadius: 0,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ]
-                                : [
-                                    BoxShadow(
-                                      color: AppTheme.primaryColor
-                                          .withOpacity(0.3),
-                                      blurRadius: 16,
-                                      spreadRadius: 0,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      blurRadius: 10,
-                                      spreadRadius: 0,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                          ),
-                          child: Text(
-                            '${comic['chapters']?.length ?? 0} chapters',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
+  Widget _buildDetailGrid() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.comic['alternative_titles'] != null && (widget.comic['alternative_titles'] as List).isNotEmpty) ...[
+          const Text('Alternative Titles:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: (widget.comic['alternative_titles'] as List).map((title) {
+               return Padding(
+                 padding: const EdgeInsets.only(bottom: 2.0),
+                 child: Text(
+                   '- $title',
+                   style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                 ),
+               );
+            }).toList(),
           ),
-        );
-      },
+          const SizedBox(height: 12),
+        ],
+        if (widget.comic['genres'] != null) ...[
+          const Text('Genres:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: (widget.comic['genres'] as List).map((genre) {
+               return Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                 decoration: BoxDecoration(
+                   color: Colors.grey[800],
+                   borderRadius: BorderRadius.circular(12),
+                 ),
+                 child: Text(
+                   genre.toString(),
+                   style: const TextStyle(color: Colors.white, fontSize: 11),
+                 ),
+               );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+        ],
+        _buildInfoRow('Author', widget.comic['author']),
+        _buildInfoRow('Illustrator', widget.comic['illustrator']),
+        _buildInfoRow('Demographic', widget.comic['demographic']),
+        _buildInfoRow('Type', widget.comic['type']),
+        _buildInfoRow('Status', widget.comic['status']),
+        _buildInfoRow('Last Updated', widget.comic['last_updated']),
+      ],
     );
   }
-}
 
-class _AnimatedSearchField extends StatelessWidget {
-  final String searchQuery;
-  final Function(String) onChanged;
-  const _AnimatedSearchField(
-      {required this.searchQuery, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 2000),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.08),
-                    Colors.white.withOpacity(0.03),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                border: Border.all(
-                  color: AppTheme.primaryColor.withOpacity(0.3),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: TextField(
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Search chapters...',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                  prefixIcon:
-                      const Icon(Icons.search, color: AppTheme.primaryColor),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                onChanged: onChanged,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedChaptersList extends StatelessWidget {
-  final Map<String, dynamic> comic;
-  final String searchQuery;
-  const _AnimatedChaptersList({required this.comic, required this.searchQuery});
-
-  @override
-  Widget build(BuildContext context) {
-    final orderedChapters = List<dynamic>.from(comic['chapters'] ?? []);
-
-    List<dynamic> filteredChapters = orderedChapters;
-    if (searchQuery.isNotEmpty) {
-      filteredChapters = orderedChapters.where((chapter) {
-        final chapterTitle = chapter['title']?.toString().toLowerCase() ?? '';
-        return chapterTitle.contains(searchQuery.toLowerCase());
-      }).toList();
-    }
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 2200),
-      curve: Curves.easeOut,
-      builder: (context, value, _) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [AppTheme.surfaceColor, AppTheme.cardColor],
-                ),
-                borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                boxShadow: AppTheme.mediumShadow,
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.05),
-                  width: 1.2,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredChapters.length,
-                  separatorBuilder: (context, _) => Divider(
-                    height: 1,
-                    indent: 70,
-                    color: Colors.white.withOpacity(0.1),
-                  ),
-                  itemBuilder: (context, index) {
-                    final chapter = filteredChapters[index];
-                    return _ChapterTile(
-                      chapter: chapter,
-                      index: index,
-                      comicImageUrl: comic['image_url'],
-                      totalChapters: orderedChapters.length,
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ChapterTile extends StatelessWidget {
-  final Map<String, dynamic> chapter;
-  final int index;
-  final String comicImageUrl;
-  final int totalChapters;
-  const _ChapterTile({
-    required this.chapter,
-    required this.index,
-    required this.comicImageUrl,
-    required this.totalChapters,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    String chapterNumber = '';
-    String chapterNumberDisplay = '';
-
-    if (chapter['title'] != null) {
-      chapterNumber = chapter['title'];
-
-      RegExp regExp = RegExp(r'Chapter\s+(\d+(?:\.\d+)?(?:[A-Za-z]+)?)');
-      var match = regExp.firstMatch(chapter['title']);
-      if (match != null && match.groupCount >= 1) {
-        chapterNumberDisplay = match.group(1) ?? '';
-      } else {
-        chapterNumberDisplay = '${index + 1}';
-      }
-    } else {
-      chapterNumber = 'Chapter ${totalChapters - index}';
-      chapterNumberDisplay = '${totalChapters - index}';
-    }
-
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool isHovered = false;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => isHovered = true),
-          onExit: (_) => setState(() => isHovered = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()..scale(isHovered ? 1.02 : 1.0),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  // Navigate to manga reader
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => MangaReaderScreen(
-                        url: chapter['url'],
-                        comicImageUrl: comicImageUrl,
-                        title: chapterNumber,
-                        chapterId: chapterNumberDisplay,
-                      ),
-                    ),
-                  );
-                },
-                splashColor: AppTheme.primaryColor.withOpacity(0.1),
-                highlightColor: AppTheme.primaryColor.withOpacity(0.05),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          gradient: isHovered
-                              ? LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    AppTheme.primaryColor.withOpacity(0.95),
-                                    AppTheme.primaryColor.withOpacity(0.75),
-                                    AppTheme.accentColor.withOpacity(0.65),
-                                  ],
-                                )
-                              : AppTheme.primaryGradient,
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMedium),
-                          boxShadow: isHovered
-                              ? [
-                                  BoxShadow(
-                                    color:
-                                        AppTheme.primaryColor.withOpacity(0.5),
-                                    blurRadius: 20,
-                                    spreadRadius: 0,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.4),
-                                    blurRadius: 12,
-                                    spreadRadius: 0,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ]
-                              : [
-                                  BoxShadow(
-                                    color:
-                                        AppTheme.primaryColor.withOpacity(0.3),
-                                    blurRadius: 16,
-                                    spreadRadius: 0,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.3),
-                                    blurRadius: 10,
-                                    spreadRadius: 0,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.menu_book,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Row(
-                              children: [
-                                const Text(
-                                  'Chapter ',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Text(
-                                  chapterNumberDisplay,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: isHovered
-                                        ? AppTheme.primaryColor.withOpacity(0.9)
-                                        : AppTheme.textPrimaryColor,
-                                  ),
-                                ),
-                                if (chapterNumber.contains('-') ||
-                                    (chapterNumber
-                                            .toLowerCase()
-                                            .contains('chapter') &&
-                                        chapterNumber.length >
-                                            ('Chapter ' + chapterNumberDisplay)
-                                                .length))
-                                  Expanded(
-                                    child: Text(
-                                      ' ' +
-                                          chapterNumber.replaceAll(
-                                              RegExp(
-                                                  r'Chapter\s+\d+(?:\.\d+)?(?:[A-Za-z]+)?\s*-?\s*'),
-                                              ''),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.normal,
-                                        color: isHovered
-                                            ? AppTheme.primaryColor
-                                                .withOpacity(0.9)
-                                            : AppTheme.primaryColor,
-                                        fontSize: 14,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            colors: [
-                              AppTheme.primaryColor.withOpacity(0.2),
-                              AppTheme.primaryColor.withOpacity(0.1),
-                            ],
-                          ),
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusSmall),
-                          border: Border.all(
-                            color: AppTheme.primaryColor.withOpacity(0.3),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.arrow_forward_ios,
-                            color: AppTheme.primaryColor,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+  Widget _buildInfoRow(String label, dynamic value) {
+    if (value == null || value.toString().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4.0),
+      child: Text.rich(
+        TextSpan(
+          style: const TextStyle(fontSize: 12, height: 1.4),
+          children: [
+            TextSpan(text: '$label: ', style: TextStyle(color: Colors.grey[400], fontWeight: FontWeight.bold)),
+            TextSpan(text: value.toString(), style: const TextStyle(color: Colors.white)),
+          ],
+        ),
+        softWrap: true,
+      ),
     );
   }
 }
