@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
-import '../widgets/update_dialog.dart';
+import '../widgets/update_bottom_sheet.dart';
 import '../services/app_version_service.dart';
 import '../services/ad_service.dart';
 import 'home_content.dart';
@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         // Show update dialog after a short delay to ensure UI is ready
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) {
-            UpdateDialog.show(
+            UpdateBottomSheet.show(
               context: context,
               latestVersion: versionData?['version'],
               changelog: changelog,
