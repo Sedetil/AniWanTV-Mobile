@@ -6,6 +6,8 @@ import 'package:provider/provider.dart' as provider;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'package:screen_brightness/screen_brightness.dart';
 
 class CustomControls extends StatefulWidget {
@@ -140,87 +142,99 @@ class _MaterialControlsState extends State<MaterialControls>
       return Container();
     }
 
-    return GestureDetector(
-      onTap: () {
-        if (_isLocked) return; // Ignore taps if locked
-        if (_isSkipping) {
-          _incrementSkip();
-        } else {
-          _toggleControls();
-        }
-      },
-      child: AnimatedBuilder(
-        animation: controller!,
-        builder: (context, child) {
-          final latestValue = controller!.value;
-          
-          if (latestValue.hasError) {
-             return chewieController?.errorBuilder?.call(
-                  context,
-                  latestValue.errorDescription ?? 'Error loading video',
-                ) ??
-                const Center(
-                  child: Icon(
-                    Icons.error,
-                    color: Colors.white,
-                    size: 42,
-                  ),
-                );
+    Widget controls = GestureDetector(
+        onTap: () {
+          if (_isLocked) return; // Ignore taps if locked
+          if (_isSkipping) {
+            _incrementSkip();
+          } else {
+            _toggleControls();
           }
-          
-          return Container(
-            color: Colors.transparent,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // 1. Skip Overlay (BACKGROUND LAYER)
-                if (_isSkipping) _buildSkipOverlay(),
+        },
+        child: AnimatedBuilder(
+          animation: controller!,
+          builder: (context, child) {
+            final latestValue = controller!.value;
+            
+            if (latestValue.hasError) {
+               return chewieController?.errorBuilder?.call(
+                    context,
+                    latestValue.errorDescription ?? 'Error loading video',
+                  ) ??
+                  const Center(
+                    child: Icon(
+                      Icons.error,
+                      color: Colors.white,
+                      size: 42,
+                    ),
+                  );
+            }
+            
+            return Container(
+              color: Colors.transparent,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // 1. Skip Overlay (BACKGROUND LAYER)
+                  if (_isSkipping) _buildSkipOverlay(),
 
-                // 2. Main Interface (Hidden if locked)
-                if (!_isLocked)
-                  IgnorePointer(
-                    ignoring: notifier.hideStuff,
-                    child: AnimatedOpacity(
-                      opacity: notifier.hideStuff ? 0.0 : 1.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: Stack(
-                        children: [
-                           // Top Bar (Title)
-                           Positioned(
-                             top: 0,
-                             left: 0,
-                             right: 0,
-                             child: _buildTopBar(context),
-                           ),
-                           
-                           // Center Controls (Play/Pause, Rewind, Forward)
-                           Center(child: _buildCenterControls(latestValue)),
-                           
-                           // Bottom Bar
-                           Positioned(
-                             bottom: 0,
-                             left: 0,
-                             right: 0,
-                             child: _buildBottomBar(context, latestValue),
-                           ),
-                        ],
+                  // 2. Main Interface (Hidden if locked)
+                  if (!_isLocked)
+                    IgnorePointer(
+                      ignoring: notifier.hideStuff,
+                      child: AnimatedOpacity(
+                        opacity: notifier.hideStuff ? 0.0 : 1.0,
+                        duration: const Duration(milliseconds: 300),
+                        child: Stack(
+                          children: [
+                             // Top Bar (Title)
+                             Positioned(
+                               top: 0,
+                               left: 0,
+                               right: 0,
+                               child: _buildTopBar(context),
+                             ),
+                             
+                             // Center Controls (Play/Pause, Rewind, Forward)
+                             Center(child: _buildCenterControls(latestValue)),
+                             
+                             // Bottom Bar
+                             Positioned(
+                               bottom: 0,
+                               left: 0,
+                               right: 0,
+                               child: _buildBottomBar(context, latestValue),
+                             ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
 
-                // 3. Lock Button (Always Visible or dependent on logic, usually visible to unlock)
-                if (notifier.hideStuff == false || _isLocked)
-                   Positioned(
-                      bottom: 44, // Adjusted to avoid overlapping bottom bar
-                      left: 24,
-                      child: _isLocked ? _buildLockOverlayButton() : SizedBox(),
-                   ),
-              ],
-            ),
-          );
+                  // 3. Lock Button (Always Visible or dependent on logic, usually visible to unlock)
+                  if (notifier.hideStuff == false || _isLocked)
+                     Positioned(
+                        bottom: 44, // Adjusted to avoid overlapping bottom bar
+                        left: 24,
+                        child: _isLocked ? _buildLockOverlayButton() : SizedBox(),
+                     ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+
+    // Only wrap with MouseRegion on Web or Desktop
+    if (kIsWeb || Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      return MouseRegion(
+        onHover: (_) {
+           _cancelAndRestartTimer();
         },
-      ),
-    );
+        child: controls,
+      );
+    }
+
+    return controls;
   }
 
   Widget _buildTopBar(BuildContext context) {
@@ -241,7 +255,10 @@ class _MaterialControlsState extends State<MaterialControls>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 40.0),
               child: Transform.translate(
-                offset: const Offset(-12, 0), // ← atur di sini
+                // Offset adjustment: Mobile uses -12, Desktop uses 0 (Centered) or adjustable
+                offset: (kIsWeb || Platform.isWindows || Platform.isLinux || Platform.isMacOS)
+                    ? const Offset(-8, 0) // Desktop: Shift Left -40
+                    : const Offset(-16, 0), // Mobile: Slightly left adjustments
                 child: Text(
                   widget.title,
                   textAlign: TextAlign.center,
@@ -330,85 +347,99 @@ class _MaterialControlsState extends State<MaterialControls>
   }
 
   Widget _buildCenterControls(VideoPlayerValue latestValue) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 30), // geser ke atas
-    child: Row(
-      children: [
-        const Spacer(flex: 4),
-
-        SizedBox(
-          height: 180,
-          child: _buildBrightnessSlider(),
-        ),
-
-        const SizedBox(width: 94), // Reduced gap "sedikit banget" to align with Episodes button
-
-        Row(
-          mainAxisSize: MainAxisSize.min,
+    // 1. Desktop/Web Layout (Features Dead-Center Controls + Independent Slider)
+    if (kIsWeb || Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.only(bottom: 30),
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            InkWell(
-              onTap: () {
-                controller?.seekTo(
-                  latestValue.position - const Duration(seconds: 10),
-                );
-              },
-              child: Stack(
-                alignment: Alignment.center,
+            // Brightness Slider (Left Side)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 50),
+                child: SizedBox(
+                  height: 180,
+                  child: _buildBrightnessSlider(),
+                ),
+              ),
+            ),
+
+            // Center Playback Controls (Dead Center)
+            // Center Playback Controls (Shifted Left)
+            Transform.translate(
+              offset: const Offset(-8, 0), // Desktop Shift
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  SvgPicture.asset(
-                    'assets/icons/rewind.svg',
-                    color: Colors.white,
-                    width: 48,
-                    height: 48,
-                  ),
-                  const Text(
-                    '10',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                  InkWell(
+                    onTap: () {
+                      controller?.seekTo(
+                        latestValue.position - const Duration(seconds: 10),
+                      );
+                    },
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SvgPicture.asset(
+                          'assets/icons/rewind.svg',
+                          color: Colors.white,
+                          width: 48,
+                          height: 48,
+                        ),
+                        const Text(
+                          '10',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
 
-            const SizedBox(width: 40),
+                  const SizedBox(width: 40),
 
-            InkWell(
-              onTap: _playPause,
-              child: Icon(
-                latestValue.isPlaying
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 64,
-              ),
-            ),
-
-            const SizedBox(width: 40),
-
-            InkWell(
-              onTap: () {
-                controller?.seekTo(
-                  latestValue.position + const Duration(seconds: 10),
-                );
-              },
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SvgPicture.asset(
-                    'assets/icons/forward.svg',
-                    color: Colors.white,
-                    width: 48,
-                    height: 48,
-                  ),
-                  const Text(
-                    '10',
-                    style: TextStyle(
+                  InkWell(
+                    onTap: _playPause,
+                    child: Icon(
+                      latestValue.isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                      size: 64,
+                    ),
+                  ),
+
+                  const SizedBox(width: 40),
+
+                  InkWell(
+                    onTap: () {
+                      controller?.seekTo(
+                        latestValue.position + const Duration(seconds: 10),
+                      );
+                    },
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SvgPicture.asset(
+                          'assets/icons/forward.svg',
+                          color: Colors.white,
+                          width: 48,
+                          height: 48,
+                        ),
+                        const Text(
+                          '10',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -416,12 +447,104 @@ class _MaterialControlsState extends State<MaterialControls>
             ),
           ],
         ),
+      );
+    } 
+    
+    // 2. Mobile Layout (Android/iOS) - Preserves Original Design
+    else {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 30),
+        child: Row(
+          children: [
+            const Spacer(flex: 4),
 
-        const Spacer(flex: 7), // Increased to push buttons left while maintaining slider pos
-      ],
-    ),
-  );
-}
+            SizedBox(
+              height: 180,
+              child: _buildBrightnessSlider(),
+            ),
+
+            const SizedBox(width: 94),
+
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InkWell(
+                  onTap: () {
+                    controller?.seekTo(
+                      latestValue.position - const Duration(seconds: 10),
+                    );
+                  },
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SvgPicture.asset(
+                        'assets/icons/rewind.svg',
+                        color: Colors.white,
+                        width: 48,
+                        height: 48,
+                      ),
+                      const Text(
+                        '10',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 40),
+
+                InkWell(
+                  onTap: _playPause,
+                  child: Icon(
+                    latestValue.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 64,
+                  ),
+                ),
+
+                const SizedBox(width: 40),
+
+                InkWell(
+                  onTap: () {
+                    controller?.seekTo(
+                      latestValue.position + const Duration(seconds: 10),
+                    );
+                  },
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SvgPicture.asset(
+                        'assets/icons/forward.svg',
+                        color: Colors.white,
+                        width: 48,
+                        height: 48,
+                      ),
+                      const Text(
+                        '10',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const Spacer(flex: 7),
+          ],
+        ),
+      );
+    }
+  }
 
   Widget _buildLockOverlayButton() {
      return InkWell(
@@ -641,6 +764,20 @@ class _MaterialControlsState extends State<MaterialControls>
         }
       }
     });
+  }
+
+  void _cancelAndRestartTimer() {
+    _hideTimer?.cancel();
+    _startHideTimer();
+
+    if (notifier.hideStuff) {
+      if (mounted) {
+        setState(() {
+          notifier.hideStuff = false;
+          _updateSystemUI();
+        });
+      }
+    }
   }
 
   Widget _buildBottomBar(BuildContext context, VideoPlayerValue latestValue) {

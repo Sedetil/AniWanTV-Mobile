@@ -106,13 +106,18 @@ class AppVersionService {
   static Future<bool> isUpdateAvailable() async {
     try {
       final versionData = await getAppVersion();
-      if (versionData == null || !versionData.containsKey('version')) {
-        return false;
+      if (versionData == null) return false;
+
+      String? latestVersion;
+      if (Platform.isWindows) {
+        latestVersion = versionData['windows_version'];
       }
+      // Fallback to default 'version' (Android) if windows_version not specific or on Android
+      latestVersion ??= versionData['version'];
 
-      final latestVersion = versionData['version'];
+      if (latestVersion == null) return false;
+
       final currentVersion = await getCurrentVersion();
-
       return compareVersions(currentVersion, latestVersion) < 0;
     } catch (e) {
       print('Error checking for update: $e');
@@ -123,14 +128,10 @@ class AppVersionService {
   // Membuka URL download
   static Future<bool> openDownloadUrl() async {
     try {
-      final versionData = await getAppVersion();
-      if (versionData == null || !versionData.containsKey('download_url')) {
-        return false;
-      }
+      final downloadUrl = await getDownloadUrl();
+      if (downloadUrl == null) return false;
 
-      final downloadUrl = versionData['download_url'];
       final uri = Uri.parse(downloadUrl);
-
       if (await canLaunchUrl(uri)) {
         return await launchUrl(
           uri,
@@ -150,10 +151,11 @@ class AppVersionService {
   static Future<String?> getDownloadUrl() async {
     try {
       final versionData = await getAppVersion();
-      if (versionData == null || !versionData.containsKey('download_url')) {
-        return null;
-      }
+      if (versionData == null) return null;
 
+      if (Platform.isWindows) {
+        return versionData['windows_download_url'] ?? versionData['download_url'];
+      }
       return versionData['download_url'];
     } catch (e) {
       print('Error getting download URL: $e');
@@ -165,10 +167,11 @@ class AppVersionService {
   static Future<String?> getChangelog() async {
     try {
       final versionData = await getAppVersion();
-      if (versionData == null || !versionData.containsKey('changelog')) {
-        return null;
-      }
+      if (versionData == null) return null;
 
+      if (Platform.isWindows) {
+        return versionData['windows_changelog'] ?? versionData['changelog'];
+      }
       return versionData['changelog'];
     } catch (e) {
       print('Error getting changelog: $e');
@@ -176,45 +179,63 @@ class AppVersionService {
     }
   }
 
-  // Download dan install APK dengan progress
-  static Future<void> downloadAndInstallApk({
+  // Download dan install (APK atau EXE) dengan progress
+  static Future<void> downloadAndInstall({
     required String downloadUrl,
     required Function(double) onProgress,
     Function()? onComplete,
     Function(String)? onError,
   }) async {
     try {
-      // Request storage permission untuk Android
-      if (await _requestStoragePermission()) {
-        // Get temporary directory
-        final tempDir = await getTemporaryDirectory();
-        final savePath = path.join(tempDir.path, 'aniwantv_update.apk');
+      // Permission check (Android only)
+      if (Platform.isAndroid && !(await _requestStoragePermission())) {
+        onError?.call('Storage permission denied');
+        return;
+      }
 
-        // Download file dengan progress
-        final request = http.Request('GET', Uri.parse(downloadUrl));
-        final streamedResponse = await request.send();
+      // Get temporary directory
+      final tempDir = await getTemporaryDirectory();
+      final fileName = Platform.isWindows ? 'aniwantv_setup.exe' : 'aniwantv_update.apk';
+      final savePath = path.join(tempDir.path, fileName);
 
-        final contentLength = streamedResponse.contentLength ?? 0;
-        if (contentLength == 0) {
-          onError?.call('Invalid file size');
-          return;
+      // Download file dengan progress
+      final request = http.Request('GET', Uri.parse(downloadUrl));
+      final streamedResponse = await request.send();
+
+      final contentLength = streamedResponse.contentLength ?? 0;
+      if (contentLength == 0) {
+        onError?.call('Invalid file size');
+        return;
+      }
+
+      final file = File(savePath);
+      final sink = file.openWrite();
+      int downloadedBytes = 0;
+
+      await for (final chunk in streamedResponse.stream) {
+        sink.add(chunk);
+        downloadedBytes += chunk.length;
+        onProgress(downloadedBytes / contentLength);
+      }
+
+      await sink.close();
+
+      // Complete download
+      onProgress(1.0); 
+
+      // Install logic
+      if (Platform.isWindows) {
+        try {
+          // Jalankan Installer .exe
+          await Process.start(savePath, []);
+          // Tutup aplikasi agar installer bisa berjalan (terutama jika installer menimpa file exe ini)
+           onComplete?.call();
+           // Optional: Delay slightly then exit? Or let UI caller handle exit
+           // UI usually calls exit(0) after onComplete
+        } catch (e) {
+          onError?.call('Failed to run installer: $e');
         }
-
-        final file = File(savePath);
-        final sink = file.openWrite();
-        int downloadedBytes = 0;
-
-        await for (final chunk in streamedResponse.stream) {
-          sink.add(chunk);
-          downloadedBytes += chunk.length;
-          onProgress(downloadedBytes / contentLength);
-        }
-
-        await sink.close();
-
-        // Install APK
-        onProgress(1.0); // Complete download
-
+      } else if (Platform.isAndroid) {
         try {
           // Use platform channel to trigger APK installation
           const platform = MethodChannel('com.streaming.aniwantv/installer');
@@ -229,11 +250,9 @@ class AppVersionService {
           print('Error installing APK: $e');
           onError?.call('Installation error: $e');
         }
-      } else {
-        onError?.call('Storage permission denied');
       }
     } catch (e) {
-      print('Error downloading APK: $e');
+      print('Error downloading update: $e');
       onError?.call('Error: $e');
     }
   }

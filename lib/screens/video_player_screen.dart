@@ -8,6 +8,8 @@ import 'dart:async';
 import '../widgets/custom_controls.dart';
 import '../widgets/custom_error_dialog.dart';
 import '../theme/app_theme.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import '../widgets/custom_loading_widget.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
@@ -44,11 +46,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    // Set landscape orientation when video player opens
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // Set landscape orientation only on mobile
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
+
     // Hide system UI for immersive experience
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     // Additional settings to ensure system UI is hidden
@@ -635,58 +640,90 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     // Ensure system UI stays hidden when widget rebuilds
 
 
-    return PopScope(
-      onPopInvoked: (didPop) {
-        if (didPop) {
-          // Delay system UI restoration to avoid visual glitch
-          Future.delayed(Duration(milliseconds: 200), () {
-            SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-            SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              systemNavigationBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark,
-              systemNavigationBarIconBrightness: Brightness.dark,
-            ));
-          });
-        }
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.space): () {
+             if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
+                if (_videoPlayerController!.value.isPlaying) {
+                  _videoPlayerController!.pause();
+                } else {
+                  _videoPlayerController!.play();
+                }
+             }
+        },
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () {
+            if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
+              final newPos = _videoPlayerController!.value.position + const Duration(seconds: 5);
+              _videoPlayerController!.seekTo(newPos);
+            }
+        },
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
+            if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
+              final newPos = _videoPlayerController!.value.position - const Duration(seconds: 5);
+              _videoPlayerController!.seekTo(newPos);
+            }
+        },
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+             _disposeControllers();
+             Navigator.of(context).pop();
+        },
       },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        extendBodyBehindAppBar: true,
-        body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black,
-                Color(0xFF0A0A0A),
-              ],
-            ),
-          ),
-          child: Stack(
-            children: [
-              // Main video content - fullscreen
-              Positioned.fill(
-                child: _buildVideoContent(),
-              ),
-
-              // Loading overlay
-              if (_isLoading)
-                Container(
-                  color: Colors.black.withOpacity(0.8),
-                  child: Center(
-                    child: CustomLoadingWidget(
-                        message: _isChangingResolution ? "Switching Quality..." : "Loading...",
-                        color: Colors.red,
-                    ),
-                  ),
+      child: Focus(
+        autofocus: true,
+        child: PopScope(
+          onPopInvoked: (didPop) {
+            if (didPop) {
+              // Delay system UI restoration to avoid visual glitch
+              Future.delayed(Duration(milliseconds: 200), () {
+                SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+                SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+                  statusBarColor: Colors.transparent,
+                  systemNavigationBarColor: Colors.transparent,
+                  statusBarIconBrightness: Brightness.dark,
+                  systemNavigationBarIconBrightness: Brightness.dark,
+                ));
+              });
+            }
+          },
+          child: Scaffold(
+            backgroundColor: Colors.black,
+            extendBodyBehindAppBar: true,
+            body: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black,
+                    Color(0xFF0A0A0A),
+                  ],
                 ),
+              ),
+              child: Stack(
+                children: [
+                  // Main video content - fullscreen
+                  Positioned.fill(
+                    child: _buildVideoContent(),
+                  ),
+
+                  // Loading overlay
+                  if (_isLoading)
+                    Container(
+                      color: Colors.black.withOpacity(0.8),
+                      child: Center(
+                        child: CustomLoadingWidget(
+                            message: _isChangingResolution ? "Switching Quality..." : "Loading...",
+                            color: Colors.red,
+                        ),
+                      ),
+                    ),
 
 
-            ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

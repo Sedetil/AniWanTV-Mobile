@@ -53,7 +53,7 @@ class _UpdateBottomSheetState extends State<UpdateBottomSheet> {
         return;
       }
 
-      await AppVersionService.downloadAndInstallApk(
+      await AppVersionService.downloadAndInstall(
         downloadUrl: downloadUrl,
         onProgress: (progress) {
           setState(() {
@@ -208,17 +208,23 @@ class _UpdateBottomSheetState extends State<UpdateBottomSheet> {
                     SizedBox(height: 12),
                     Container(
                       width: double.infinity,
+                      constraints: BoxConstraints(
+                        maxHeight: 300, // Limit height enabling scrolling for long changelogs
+                      ),
                       padding: EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.3),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.white10),
                       ),
-                      child: Text(
-                        widget.changelog!,
-                        style: TextStyle(
-                          color: AppTheme.textSecondaryColor,
-                          height: 1.5,
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Text(
+                          widget.changelog!,
+                          style: TextStyle(
+                            color: AppTheme.textSecondaryColor,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     ),

@@ -235,19 +235,34 @@ class _ExploreScreenState extends State<ExploreScreen> {
       return Center(child: Text('Ga Ketemu Nih...', style: TextStyle(color: Colors.white)));
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8), // Padding handled by parent
-      physics: const BouncingScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.7, 
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _buildCard(item);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int crossAxisCount;
+        if (constraints.maxWidth > 1200) {
+          crossAxisCount = 6;
+        } else if (constraints.maxWidth > 900) {
+          crossAxisCount = 5;
+        } else if (constraints.maxWidth > 600) {
+          crossAxisCount = 4;
+        } else {
+          crossAxisCount = 2;
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8), // Padding handled by parent
+          physics: const BouncingScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 0.7, 
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _buildCard(item);
+          },
+        );
       },
     );
   }

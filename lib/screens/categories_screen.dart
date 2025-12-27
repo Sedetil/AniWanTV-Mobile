@@ -114,17 +114,32 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
               // Grid
               Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 1.0, // Match square-ish look
-                  ),
-                  itemCount: 8,
-                  itemBuilder: (context, index) {
-                    return _buildCategoryCard();
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    int crossAxisCount;
+                    if (constraints.maxWidth > 1200) {
+                      crossAxisCount = 6;
+                    } else if (constraints.maxWidth > 900) {
+                      crossAxisCount = 5;
+                    } else if (constraints.maxWidth > 600) {
+                      crossAxisCount = 3; // 3 columns for tablets/small windows
+                    } else {
+                      crossAxisCount = 2; // 2 columns for phones
+                    }
+
+                    return GridView.builder(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 1.0, // Match square-ish look
+                      ),
+                      itemCount: 8,
+                      itemBuilder: (context, index) {
+                        return _buildCategoryCard();
+                      },
+                    );
                   },
                 ),
               ),

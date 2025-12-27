@@ -242,19 +242,41 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       return _buildEmptyState(isAnime);
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      physics: const BouncingScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, // 2 columns like reference image (or 3 if preferred, user's home was 3, but ref looks like 2 large items)
-        childAspectRatio: 0.7, // Poster ratio
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _buildFavoriteCard(item, isAnime);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Responsive grid count based on available width
+        int crossAxisCount;
+        if (constraints.maxWidth > 1200) {
+          crossAxisCount = 6;
+        } else if (constraints.maxWidth > 900) {
+          crossAxisCount = 5;
+        } else if (constraints.maxWidth > 600) {
+          crossAxisCount = 4;
+        } else {
+          crossAxisCount = 3; // Mobile default - 3 columns is better for posters, or 2 if they are wide
+        }
+        
+        // Use 2 columns for very small mobile screens if 3 is too crowded, but user likely wants 3
+        // Actually, previous code was fixed at 2. Let's stick closer to that for mobile.
+        if (constraints.maxWidth < 400) {
+           crossAxisCount = 2; 
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          physics: const BouncingScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: 0.7, // Poster ratio
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _buildFavoriteCard(item, isAnime);
+          },
+        );
       },
     );
   }

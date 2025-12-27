@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:ui'; // For ClipRect and BackdropFilter
 
@@ -43,15 +45,24 @@ class CustomBottomNavBar extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8), 
               color: Colors.black.withOpacity(0.2),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(0, 'assets/icons/home.svg', 'assets/icons/home_red.svg'),
-                  _buildNavItem(1, 'assets/icons/Search.svg', 'assets/icons/search_red.svg'),
-                  _buildNavItem(2, 'assets/icons/explore.svg', 'assets/icons/explore_red.svg'),
-                  _buildNavItem(3, 'assets/icons/favorite.svg', 'assets/icons/favorite_red.svg'),
-                  _buildNavItem(4, 'assets/icons/profile.svg', 'assets/icons/profile_red.svg'),
-                ],
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: (kIsWeb || Platform.isWindows || Platform.isLinux || Platform.isMacOS)
+                        ? 500
+                        : double.infinity,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildNavItem(0, 'assets/icons/home.svg', 'assets/icons/home_red.svg'),
+                      _buildNavItem(1, 'assets/icons/Search.svg', 'assets/icons/search_red.svg'),
+                      _buildNavItem(2, 'assets/icons/explore.svg', 'assets/icons/explore_red.svg'),
+                      _buildNavItem(3, 'assets/icons/favorite.svg', 'assets/icons/favorite_red.svg'),
+                      _buildNavItem(4, 'assets/icons/profile.svg', 'assets/icons/profile_red.svg'),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

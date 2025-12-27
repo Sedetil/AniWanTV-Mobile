@@ -87,13 +87,23 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> {
   Widget _buildHeader(BuildContext context, Map<String, dynamic> anime) {
     return Stack(
       children: [
-        AspectRatio(
-          aspectRatio: 16 / 9,
-          child: Image.network(
-            anime['image_url'] ?? '',
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: Colors.grey[900]),
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // On wide screens, restrict the height so it doesn't take up the whole view
+            // If width > 800, use a fixed shorter height or wider aspect ratio
+            double aspectRatio = 16 / 9;
+            if (constraints.maxWidth > 800) {
+              aspectRatio = 21 / 9; // Ultra-wide for desktop
+            }
+            return AspectRatio(
+              aspectRatio: aspectRatio,
+              child: Image.network(
+                anime['image_url'] ?? '',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(color: Colors.grey[900]),
+              ),
+            );
+          }
         ),
         // Gradient overlay
         Positioned.fill(

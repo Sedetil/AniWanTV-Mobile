@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
+import '../widgets/custom_side_nav_bar.dart';
 import '../widgets/update_bottom_sheet.dart';
 import '../services/app_version_service.dart';
 import '../services/ad_service.dart';
@@ -135,6 +136,47 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     
     // For Desktop logic
     final isDesktop = screenWidth > 900;
+
+    // The main content stack (reused for both layouts)
+    final bodyContent = Stack(
+      children: List.generate(_pages.length, (index) {
+        final isCurrent = index == _currentNavIndex;
+        final isPrevious = index == _previousNavIndex;
+        final isAnimating = _animationController.isAnimating;
+        
+        final bool isVisible = isCurrent || (isPrevious && isAnimating);
+        
+        return Offstage(
+          offstage: !isVisible,
+          child: TickerMode(
+            enabled: isCurrent,
+            child: IgnorePointer(
+              ignoring: !isCurrent,
+              child: Builder(
+                builder: (context) {
+                  if (isCurrent) {
+                    return FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: SlideTransition(
+                        position: _slideAnimation,
+                        child: _pages[index],
+                      ),
+                    );
+                  } else if (isPrevious && isAnimating) {
+                    return FadeTransition(
+                      opacity: Tween<double>(begin: 1.0, end: 0.0).animate(_fadeAnimation),
+                      child: _pages[index],
+                    );
+                  } else {
+                    return _pages[index];
+                  }
+                },
+              ),
+            ),
+          ),
+        );
+      }),
+    );
     
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -146,85 +188,52 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Scaffold(
         backgroundColor: AppTheme.backgroundColor,
         extendBody: true, // Important for floating nav bar
-        body: Stack(
-          children: List.generate(_pages.length, (index) {
-            final isCurrent = index == _currentNavIndex;
-            final isPrevious = index == _previousNavIndex;
-            final isAnimating = _animationController.isAnimating;
-            
-            // Logic:
-            // 1. If Current: Visible, Interactive, Animated In.
-            // 2. If Previous & Animating: Visible, IGNORED (no touch), Animated Out.
-            // 3. Otherwise: Offstage (Hidden), IGNORED, Static.
-            
-            // Determine offstage status
-            // Show if it is current OR (previous AND animating)
-            final bool isVisible = isCurrent || (isPrevious && isAnimating);
-            
-            return Offstage(
-              offstage: !isVisible,
-              child: TickerMode(
-                enabled: isCurrent, // only tick if current
-                child: IgnorePointer(
-                  ignoring: !isCurrent, // Ignore touches on fading out pages
-                  child: Builder(
-                    builder: (context) {
-                      if (isCurrent) {
-                        // Slide + Fade In
-                        return FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: SlideTransition(
-                            position: _slideAnimation,
-                            child: _pages[index],
-                          ),
-                        );
-                      } else if (isPrevious && isAnimating) {
-                         // Fade Out only
-                        return FadeTransition(
-                          opacity: Tween<double>(begin: 1.0, end: 0.0).animate(_fadeAnimation),
-                          child: _pages[index],
-                        );
-                      } else {
-                        // Just the page (hidden by Offstage)
-                        return _pages[index];
-                      }
-                    },
+        // Desktop: Row (SideNav + Body) vs Mobile: Body only
+        body: isDesktop
+            ? Row(
+                children: [
+                  CustomSideNavBar(
+                    currentIndex: _currentNavIndex,
+                    onTap: _handleNavigation,
                   ),
-                ),
-              ),
-            );
-          }),
-        ),
-        bottomNavigationBar: isDesktop ? null : Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-             CustomBottomNavBar(
-              currentIndex: _currentNavIndex,
-              onTap: _handleNavigation,
-            ),
-             if (AdService.bottomNavBanner != null)
-              Container(
-                width: double.infinity,
-                color: Colors.black, // Ensures background is black behind system nav bar if transparent
-                child: SafeArea(
-                  top: false,
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: Container(
+                  Expanded(child: bodyContent),
+                ],
+              )
+            : bodyContent,
+        
+        // Desktop: Null vs Mobile: BottomNavBar
+        bottomNavigationBar: isDesktop
+            ? null
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                   CustomBottomNavBar(
+                    currentIndex: _currentNavIndex,
+                    onTap: _handleNavigation,
+                  ),
+                   if (AdService.bottomNavBanner != null)
+                    Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.only(top: 4), // Separator above ad
-                      child: SizedBox(
-                        width: AdService.bottomNavBanner!.size.width.toDouble(),
-                        height: AdService.bottomNavBanner!.size.height.toDouble(),
-                        child: AdWidget(ad: AdService.bottomNavBanner!),
+                      color: Colors.black, // Ensures background is black behind system nav bar if transparent
+                      child: SafeArea(
+                        top: false,
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.only(top: 4), // Separator above ad
+                            child: SizedBox(
+                              width: AdService.bottomNavBanner!.size.width.toDouble(),
+                              height: AdService.bottomNavBanner!.size.height.toDouble(),
+                              child: AdWidget(ad: AdService.bottomNavBanner!),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                ],
               ),
-          ],
-        ),
       ),
     );
   }

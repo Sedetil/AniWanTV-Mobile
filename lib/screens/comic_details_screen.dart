@@ -309,13 +309,21 @@ class _ComicDetailsScreenState extends State<ComicDetailsScreen> {
   Widget _buildHeader(BuildContext context, Map<String, dynamic> comic) {
     return Stack(
       children: [
-        AspectRatio(
-          aspectRatio: 16 / 9,
-          child: Image.network(
-            comic['image_url'] ?? '',
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: Colors.grey[900]),
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+             double aspectRatio = 16 / 9;
+            if (constraints.maxWidth > 800) {
+              aspectRatio = 21 / 9; 
+            }
+            return AspectRatio(
+              aspectRatio: aspectRatio,
+              child: Image.network(
+                comic['image_url'] ?? '',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(color: Colors.grey[900]),
+              ),
+            );
+          }
         ),
         // Gradient overlay
         Positioned.fill(

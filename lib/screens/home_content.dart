@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:carousel_slider/carousel_controller.dart' as slider;
@@ -44,6 +45,7 @@ class _HomeContentState extends State<HomeContent> with AutomaticKeepAliveClient
   bool isLoading = true;
   int _currentCarouselIndex = 0;
   bool _showAnime = true; // Toggle state
+  bool _isUpdateAvailable = false; // Persistent update indicator
 
   @override
   bool get wantKeepAlive => true;
@@ -51,6 +53,7 @@ class _HomeContentState extends State<HomeContent> with AutomaticKeepAliveClient
   @override
   void initState() {
     super.initState();
+    _checkForUpdates(); // Check for updates on init
 
     // Use preloaded content if available
     if (widget.preloadedAnime != null &&
@@ -110,6 +113,37 @@ class _HomeContentState extends State<HomeContent> with AutomaticKeepAliveClient
     }
   }
 
+  Future<void> _checkForUpdates() async {
+    try {
+      final available = await AppVersionService.isUpdateAvailable();
+      if (mounted) {
+        setState(() {
+          _isUpdateAvailable = available;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _showUpdateSheet() async {
+    final versionData = await AppVersionService.getAppVersion();
+    final changelog = await AppVersionService.getChangelog();
+    
+    // Determine version string based on platform
+    String? latestVersion;
+    if (Platform.isWindows) {
+      latestVersion = versionData?['windows_version'];
+    }
+    latestVersion ??= versionData?['version'];
+
+    if (mounted) {
+      UpdateBottomSheet.show(
+        context: context,
+        latestVersion: latestVersion,
+        changelog: changelog,
+      );
+    }
+  }
+
   void _showErrorDialog(String title, String message) {
     CustomErrorDialog.show(
       context,
@@ -160,8 +194,8 @@ class _HomeContentState extends State<HomeContent> with AutomaticKeepAliveClient
     if (featuredContent.isEmpty) return SizedBox.shrink();
 
     final item = featuredContent[_currentCarouselIndex]; // Use current index
-    // Adjusted height to 0.45 to allow grid content (2 rows) to be visible
-    final heroHeight = screenHeight * 0.45; 
+    // Adjusted height: 45% of screen height, but capped at 500px for desktop to avoid taking too much space
+    final double heroHeight = (screenHeight * 0.45).clamp(200.0, 500.0); 
 
     return SizedBox(
       height: heroHeight,
@@ -263,7 +297,37 @@ class _HomeContentState extends State<HomeContent> with AutomaticKeepAliveClient
                             child: Icon(Icons.search, color: Colors.white, size: 24),
                           ),
                           SizedBox(width: 16),
-                          Icon(Icons.notifications_outlined, color: Colors.white, size: 24),
+                          GestureDetector(
+                            onTap: () {
+                              if (_isUpdateAvailable) {
+                                _showUpdateSheet();
+                              }
+                            },
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(
+                                  _isUpdateAvailable ? Icons.notifications_active : Icons.notifications_outlined,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                                if (_isUpdateAvailable)
+                                  Positioned(
+                                    right: -1,
+                                    top: -1,
+                                    child: Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryColor, // Use primary color for indicator
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white, width: 1.5),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -458,89 +522,104 @@ class _HomeContentState extends State<HomeContent> with AutomaticKeepAliveClient
   Widget _buildContentGrid(double maxWidth) {
     final items = _showAnime ? latestAnime : latestComics;
     
-    // Calculate aspect ratio for posters
-    final cardWidth = (maxWidth - 48) / 3; // 3 columns, some padding
+    // Responsive grid count calculation
+    int crossAxisCount = 3;
+    if (maxWidth > 1200) {
+      crossAxisCount = 6;
+    } else if (maxWidth > 800) {
+      crossAxisCount = 5;
+    } else if (maxWidth > 600) {
+      crossAxisCount = 4;
+    }
+
+    // Adjust aspect ratio slightly for wider screens if needed, 
+    // but usually 0.70 is fine for posters.
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        shrinkWrap: true,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          childAspectRatio: 0.70, // Increased aspect ratio makes items shorter
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 16,
-        ),
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          final item = items[index];
-          return GestureDetector(
-            onTap: () {
-               if (_showAnime) {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => AnimeDetailsScreen(url: item['url'])));
-               } else {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => ComicDetailsScreen(url: item['url'], type: item['type'])));
-               }
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          item['image_url'],
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          errorBuilder: (_,__,___) => Container(color: Colors.grey[800]),
-                        ),
-                      ),
-                      // Type Badge
-                      if (!_showAnime && item['type'] != null)
-                        Positioned(
-                          top: 4,
-                          left: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withOpacity(0.9), // Brand color
-                              borderRadius: BorderRadius.circular(4),
-                              boxShadow: [
-                                BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 1))
-                              ],
-                            ),
-                            child: Text(
-                              (item['type'] as String).toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1400),
+          child: GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              childAspectRatio: 0.70, 
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return GestureDetector(
+                onTap: () {
+                   if (_showAnime) {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => AnimeDetailsScreen(url: item['url'])));
+                   } else {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => ComicDetailsScreen(url: item['url'], type: item['type'])));
+                   }
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              item['image_url'],
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              errorBuilder: (_,__,___) => Container(color: Colors.grey[800]),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
+                          // Type Badge
+                          if (!_showAnime && item['type'] != null)
+                            Positioned(
+                              top: 4,
+                              left: 4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryColor.withOpacity(0.9), // Brand color
+                                  borderRadius: BorderRadius.circular(4),
+                                  boxShadow: [
+                                    BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 1))
+                                  ],
+                                ),
+                                child: Text(
+                                  (item['type'] as String).toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      item['title'],
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  item['title'],
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+              );
+            },
+          ),
+        ),
       ),
     );
   }
