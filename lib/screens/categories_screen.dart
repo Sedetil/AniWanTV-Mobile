@@ -1,188 +1,210 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'search_screen.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class CategoriesScreen extends StatefulWidget {
-  const CategoriesScreen({Key? key}) : super(key: key);
+  final bool initialIsAnime;
+  const CategoriesScreen({Key? key, this.initialIsAnime = true}) : super(key: key);
 
   @override
   State<CategoriesScreen> createState() => _CategoriesScreenState();
 }
 
-class _CategoriesScreenState extends State<CategoriesScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _CategoriesScreenState extends State<CategoriesScreen> {
+  late bool _isAnimeSelected;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+    _isAnimeSelected = widget.initialIsAnime;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        title: const Text('Categories'),
-        backgroundColor: AppTheme.backgroundColor,
-        elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicatorColor: AppTheme.primaryColor,
-                labelColor: Colors.white,
-                unselectedLabelColor: AppTheme.textSecondaryColor,
-                tabs: const [
-                  Tab(text: 'ANIME'),
-                  Tab(text: 'KOMIK'),
+      backgroundColor: Colors.black, // Dark background as per UI
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(width: 16),
+                      const Text(
+                        'Category',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  GestureDetector(
+                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SearchScreen(autoFocus: true))),
+                     child: Icon(Icons.search, color: Colors.white, size: 28),
+                  ),
                 ],
               ),
-            ),
+              
+              const SizedBox(height: 24),
+              
+              // Custom Toggle Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _isAnimeSelected = true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: _isAnimeSelected ? const Color(0xFFE53935) : const Color(0xFF1F1F1F),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'ANIME',
+                          style: TextStyle(
+                            color: _isAnimeSelected ? Colors.white : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _isAnimeSelected = false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: !_isAnimeSelected ? const Color(0xFFE53935) : const Color(0xFF1F1F1F),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'KOMIK',
+                          style: TextStyle(
+                            color: !_isAnimeSelected ? Colors.white : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // Grid
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    int crossAxisCount;
+                    if (constraints.maxWidth > 1200) {
+                      crossAxisCount = 6;
+                    } else if (constraints.maxWidth > 900) {
+                      crossAxisCount = 5;
+                    } else if (constraints.maxWidth > 600) {
+                      crossAxisCount = 3; // 3 columns for tablets/small windows
+                    } else {
+                      crossAxisCount = 2; // 2 columns for phones
+                    }
+
+                    return GridView.builder(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 1.0, // Match square-ish look
+                      ),
+                      itemCount: 8,
+                      itemBuilder: (context, index) {
+                        return _buildCategoryCard();
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildPlaceholderGrid(),
-          _buildPlaceholderGrid(),
-        ],
       ),
     );
   }
 
-  Widget _buildPlaceholderGrid() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
+  Widget _buildCategoryCard() {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF7F66), // Salmon/Coral color
+        borderRadius: BorderRadius.circular(24),
+        image: const DecorationImage(
+          image: AssetImage('assets/images/bg_categories.png'),
+          fit: BoxFit.cover, // Pattern background
+          opacity: 0.5, // Subtle pattern
+        ),
+      ),
+      child: Stack(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppTheme.surfaceColor,
-                  AppTheme.cardColor,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: AppTheme.subtleShadow,
-              border: Border.all(color: Colors.white.withOpacity(0.06)),
+          // Character Image at Bottom Right
+          Positioned(
+            right: -15,
+            bottom: -5,
+            child: SvgPicture.asset(
+              'assets/images/anime_categories.svg',
+              height: 160, // Significantly larger to match design
+              fit: BoxFit.contain,
             ),
-            child: Row(
+          ),
+          
+          // Text Content
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: AppTheme.mediumShadow,
-                  ),
-                  child: const Icon(Icons.category, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Categories',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                const Text(
+                  'Category',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                       Shadow(blurRadius: 4, color: Colors.black26, offset: Offset(0, 2)),
+                    ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withOpacity(0.06)),
-                  ),
-                  child: Text(
-                    'Coming Soon',
-                    style: TextStyle(color: AppTheme.textSecondaryColor, fontSize: 12),
+                const SizedBox(height: 4),
+                Text(
+                  'Soon',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 1.05,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: 8,
-              itemBuilder: (context, index) {
-                return _buildCategoryPlaceholderCard();
-              },
-            ),
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryPlaceholderCard() {
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppTheme.surfaceColor,
-              AppTheme.cardColor,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: AppTheme.subtleShadow,
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: AppTheme.mediumShadow,
-              ),
-              child: const Icon(Icons.label_important_outline, color: Colors.white, size: 28),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Category',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Soon',
-              style: TextStyle(color: AppTheme.textSecondaryColor, fontSize: 12),
-            ),
-          ],
-        ),
       ),
     );
   }

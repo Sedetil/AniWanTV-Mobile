@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:ui'; // For ClipRect and BackdropFilter
 
-class CustomBottomNavBar extends StatefulWidget {
+class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
 
@@ -12,143 +15,79 @@ class CustomBottomNavBar extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _CustomBottomNavBarState createState() => _CustomBottomNavBarState();
-}
-
-class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
-  int? _hoveredIndex;
-
-  @override
   Widget build(BuildContext context) {
     return Container(
+      // margin removed for docked look
       decoration: BoxDecoration(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)), // Rounded top only
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppTheme.backgroundColor,
-            AppTheme.surfaceColor,
+            const Color(0xFF1A0000).withOpacity(0.8), // Very dark red/black with opacity for glass
+            const Color(0xFF000000).withOpacity(0.9), // Black
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 15,
-            spreadRadius: 0,
-            offset: Offset(0, -5),
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, -5), // Shadow upwards
           ),
         ],
       ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavBarItem(context, Icons.home_outlined, 'Home', 0),
-              _buildNavBarItem(context, Icons.explore_outlined, 'Explore', 1),
-              // Center placeholder for FAB
-              SizedBox(width: 56),
-              _buildNavBarItem(context, Icons.favorite_border, 'Favorites', 2),
-              _buildNavBarItem(context, Icons.person_outline, 'Profile', 3),
-            ],
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: SafeArea( // Added SafeArea to handle system gesture area
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8), 
+              color: Colors.black.withOpacity(0.2),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: (kIsWeb || Platform.isWindows || Platform.isLinux || Platform.isMacOS)
+                        ? 500
+                        : double.infinity,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildNavItem(0, 'assets/icons/home.svg', 'assets/icons/home_red.svg'),
+                      _buildNavItem(1, 'assets/icons/Search.svg', 'assets/icons/search_red.svg'),
+                      _buildNavItem(2, 'assets/icons/explore.svg', 'assets/icons/explore_red.svg'),
+                      _buildNavItem(3, 'assets/icons/favorite.svg', 'assets/icons/favorite_red.svg'),
+                      _buildNavItem(4, 'assets/icons/profile.svg', 'assets/icons/profile_red.svg'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildNavBarItem(BuildContext context, IconData icon, String label, int index) {
-    final isActive = widget.currentIndex == index;
-    final isHovered = _hoveredIndex == index;
+  Widget _buildNavItem(int index, String inactiveIcon, String activeIcon) {
+    final isActive = currentIndex == index;
     
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hoveredIndex = index),
-      onExit: (_) => setState(() => _hoveredIndex = null),
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        transform: Matrix4.identity()
-          ..scale(isHovered ? 1.05 : 1.0),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => widget.onTap(index),
-            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-            splashColor: AppTheme.primaryColor.withOpacity(0.1),
-            highlightColor: AppTheme.primaryColor.withOpacity(0.05),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                gradient: isActive || isHovered
-                    ? LinearGradient(
-                        colors: [
-                          AppTheme.primaryColor.withOpacity(0.15),
-                          AppTheme.primaryColor.withOpacity(0.05),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      )
-                    : null,
-                boxShadow: isActive || isHovered
-                    ? [
-                        BoxShadow(
-                          color: AppTheme.primaryColor.withOpacity(0.2),
-                          blurRadius: 8,
-                          spreadRadius: 0,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedContainer(
-                    duration: Duration(milliseconds: 200),
-                    padding: EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                      gradient: isActive || isHovered
-                          ? AppTheme.primaryGradient
-                          : LinearGradient(
-                              colors: [
-                                Colors.transparent,
-                                Colors.transparent,
-                              ],
-                            ),
-                      boxShadow: isActive || isHovered
-                          ? [
-                              BoxShadow(
-                                color: AppTheme.primaryColor.withOpacity(0.3),
-                                blurRadius: 6,
-                                spreadRadius: 1,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Icon(
-                      icon,
-                      color: isActive || isHovered ? Colors.white : AppTheme.textSecondaryColor,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  AnimatedDefaultTextStyle(
-                    duration: Duration(milliseconds: 200),
-                    style: TextStyle(
-                      color: isActive || isHovered ? AppTheme.primaryColor : AppTheme.textSecondaryColor,
-                      fontSize: isHovered ? 12 : 11,
-                      fontWeight: isActive || isHovered ? FontWeight.bold : FontWeight.normal,
-                      letterSpacing: isActive || isHovered ? 0.5 : 0.25,
-                    ),
-                    child: Text(label),
-                  ),
-                ],
-              ),
-            ),
-          ),
+    return GestureDetector(
+      onTap: () => onTap(index),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        child: SvgPicture.asset(
+          isActive ? activeIcon : inactiveIcon,
+          width: 22, // Reduced from 28
+          height: 22, // Reduced from 28
+          // No color filter for active icon as we use the provided red assets
+          // For inactive, we ensure they are white (assuming the SVG is white or we tint it)
+          colorFilter: isActive 
+              ? null // Use original colors (red) for active
+              : const ColorFilter.mode(Colors.white, BlendMode.srcIn), // Tint white for inactive
         ),
       ),
     );
